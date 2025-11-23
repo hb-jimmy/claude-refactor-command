@@ -6,8 +6,8 @@ Get started with the Claude Code Refactoring Plugin in 5 minutes.
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/claude-refactor-plugin.git
-cd claude-refactor-plugin
+git clone https://github.com/hb-jimmy/claude-refactor-command.git
+cd claude-refactor-command
 cp -r .claude/* ~/.claude/
 ```
 
@@ -176,7 +176,7 @@ The system stops when these targets are met for 3 consecutive iterations:
 
 ## Need Help?
 
-- GitHub Issues: https://github.com/yourusername/claude-refactor-plugin/issues
+- GitHub Issues: https://github.com/hb-jimmy/claude-refactor-command/issues
 - Claude Code Docs: https://github.com/anthropics/claude-code
 
 Happy refactoring!

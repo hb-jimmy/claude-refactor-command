@@ -15,10 +15,10 @@ The fastest way to get started:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-refactor-plugin.git
+git clone https://github.com/hb-jimmy/claude-refactor-command.git
 
 # Navigate to the repository
-cd claude-refactor-plugin
+cd claude-refactor-command
 
 # Copy files to your Claude directory
 cp -r .claude/* ~/.claude/
@@ -34,8 +34,8 @@ If you plan to contribute or want automatic updates:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-refactor-plugin.git
-cd claude-refactor-plugin
+git clone https://github.com/hb-jimmy/claude-refactor-command.git
+cd claude-refactor-command
 
 # Create command symlink
 ln -sf "$(pwd)/.claude/commands/refactor_code.md" ~/.claude/commands/refactor_code.md
@@ -82,7 +82,7 @@ Or test directly:
 ### If Installed via Copy (Method 1)
 
 ```bash
-cd claude-refactor-plugin
+cd claude-refactor-command
 git pull
 cp -r .claude/* ~/.claude/
 ```
@@ -90,7 +90,7 @@ cp -r .claude/* ~/.claude/
 ### If Installed via Symlink (Method 2)
 
 ```bash
-cd claude-refactor-plugin
+cd claude-refactor-command
 git pull
 # Symlinks automatically point to updated files
 ```
@@ -186,5 +186,5 @@ After installation:
 If you encounter issues:
 
 1. Check this troubleshooting guide
-2. Review [open issues](https://github.com/yourusername/claude-refactor-plugin/issues)
+2. Review [open issues](https://github.com/hb-jimmy/claude-refactor-command/issues)
 3. Create a new issue with details about your problem

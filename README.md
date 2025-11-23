@@ -21,12 +21,12 @@ This plugin provides the `/refactor_code` command, which orchestrates nine speci
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/yourusername/claude-refactor-plugin.git
+   git clone https://github.com/hb-jimmy/claude-refactor-command.git
    ```
 
 2. Copy the `.claude` directory to your home directory:
    ```bash
-   cp -r claude-refactor-plugin/.claude/* ~/.claude/
+   cp -r claude-refactor-command/.claude/* ~/.claude/
    ```
 
 3. The command will be immediately available in Claude Code
@@ -37,11 +37,11 @@ If you want to keep the plugin updated via git:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/claude-refactor-plugin.git
+git clone https://github.com/hb-jimmy/claude-refactor-command.git
 
 # Create symlinks
-ln -s "$(pwd)/claude-refactor-plugin/.claude/commands/refactor_code.md" ~/.claude/commands/
-ln -s "$(pwd)/claude-refactor-plugin/.claude/agents/"* ~/.claude/agents/
+ln -s "$(pwd)/claude-refactor-command/.claude/commands/refactor_code.md" ~/.claude/commands/
+ln -s "$(pwd)/claude-refactor-command/.claude/agents/"* ~/.claude/agents/
 ```
 
 ## Usage

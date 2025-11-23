@@ -4,10 +4,10 @@
   "description": "A comprehensive multi-agent refactoring system for Claude Code that transforms complex codebases through recursive refinement",
   "author": "Jimmy Balmert",
   "license": "MIT",
-  "homepage": "https://github.com/yourusername/claude-refactor-plugin",
+  "homepage": "https://github.com/hb-jimmy/claude-refactor-command",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/claude-refactor-plugin.git"
+    "url": "https://github.com/hb-jimmy/claude-refactor-command.git"
   },
   "keywords": [
     "claude",
