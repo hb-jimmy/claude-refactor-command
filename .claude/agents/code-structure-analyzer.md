@@ -21,34 +21,55 @@ It focuses on **structure**, **metrics**, and **smell detection** rather than be
 
 ## 🎯 Objectives
 
-1. **Structural Extraction** — Identify all classes, methods, functions, fields, and control constructs.  
-2. **Metric Computation** — Quantify code quality attributes (complexity, cohesion, coupling, size, abstraction depth).  
-3. **Smell Detection** — Detect patterns that indicate refactoring opportunities for later agents.  
-4. **Model Generation** — Output a normalized data structure representing the analyzed codebase.
+1. **Structural Extraction** — Identify all classes, methods, functions, fields, and control constructs.
+2. **Responsibility Identification** — Identify 2-5 distinct responsibilities per class using field cohesion, blank line separators, and section comments.
+3. **Metric Computation** — Quantify code quality attributes (complexity, cohesion, coupling, size, abstraction depth).
+4. **Smell Detection** — Detect patterns that indicate refactoring opportunities for later agents.
+5. **Model Generation** — Output a normalized data structure representing the analyzed codebase with identified responsibilities.
 
 ---
 
 ## 🧱 Normative Requirements
 
 ### 1. Parsing and Representation
-1. Claude **MUST** parse the provided source into a structural representation (e.g., abstract syntax tree or hierarchical outline).  
-2. Claude **MUST** identify the following entities: `class`, `method/function`, `field/variable`, `control structure`.  
-3. Each entity **MUST** include its scope, location, and relationships to others (e.g., method belongs to class).  
+1. Claude **MUST** parse the provided source into a structural representation (e.g., abstract syntax tree or hierarchical outline).
+2. Claude **MUST** identify the following entities: `class`, `method/function`, `field/variable`, `control structure`.
+3. Each entity **MUST** include its scope, location, and relationships to others (e.g., method belongs to class).
 4. Parsing **SHOULD** be language-aware when possible; if the language is ambiguous, Claude **MAY** fall back to pattern heuristics (comments, indentation, keywords).
 
-### 2. Metric Computation
-1. Each method **MUST** have computed: 
-   - **Lines of Code (LOC)**  
-   - **Cyclomatic Complexity (approximate)**  
-   - **Nesting Depth**  
-   - **Fan-In** and **Fan-Out** (when detectable)  
-2. Each class **MUST** have: 
-   - **Cohesion Score (0–1)**  
-   - **Coupling Score (0–1)**  
-   - **Public/Private field counts**  
-3. Claude **SHOULD** flag metrics exceeding common thresholds (e.g., complexity > 5, LOC > 10, cohesion < 0.8).  
+### 2. Responsibility Identification
+1. Claude **MUST** analyze each class wholistically to identify distinct responsibilities.
+2. Claude **MUST** use the following signals to identify responsibilities:
+   - **Field Cohesion Clustering** — Group fields that are accessed together throughout the class code. Each cluster likely represents a distinct responsibility.
+   - **Blank Line Separators** — Visual gaps between code sections indicate conceptual boundaries between responsibilities.
+   - **Section Comments** — Comments describing "what follows" (e.g., `// Validate order`, `// Process payment`) signal distinct responsibilities.
+   - **Code Semantic Analysis** — Understand what each section of code does conceptually.
+3. Claude **MUST** identify between 2 and 5 distinct responsibilities per class.
+4. If more than 5 responsibilities are detected, Claude **MUST**:
+   - Attempt to find higher-level abstractions that group related responsibilities.
+   - If higher-level grouping is ambiguous, Claude **MUST** prompt the user for guidance.
+5. If only 1 responsibility is detected, Claude **MUST** leave the class as-is (no extraction required).
+6. For each identified responsibility, Claude **MUST** output:
+   - **Name** — A domain noun representing the responsibility (not a verb/service name).
+   - **Associated Fields** — The field cluster used by this responsibility.
+   - **Associated Code Sections** — Line ranges or method names implementing this responsibility.
+   - **Confidence Level** — High/Medium/Low based on signal strength.
+7. Claude **MUST** ensure each responsibility is truly distinct (not just steps in a single workflow).
+8. Responsibilities **MUST** align with Single Responsibility Principle (SRP) — each represents a different reason to change.
 
-### 3. Smell Detection
+### 3. Metric Computation
+1. Each method **MUST** have computed:
+   - **Lines of Code (LOC)**
+   - **Cyclomatic Complexity (approximate)**
+   - **Nesting Depth**
+   - **Fan-In** and **Fan-Out** (when detectable)
+2. Each class **MUST** have:
+   - **Cohesion Score (0–1)** — Target cohesion = 1.0 (primary goal), minimum 0.9 (fallback)
+   - **Coupling Score (0–1)** — Target ≤ 0.3
+   - **Public/Private field counts**
+3. Claude **SHOULD** flag metrics exceeding common thresholds (e.g., complexity > 5, LOC > 10, cohesion < 1.0).
+
+### 4. Smell Detection
 Claude **MUST** detect and report the following smells as structured flags:  
 
 | Smell ID | Condition | Downstream Agent |
@@ -59,9 +80,11 @@ Claude **MUST** detect and report the following smells as structured flags:
 | SM4 | Public Field Found | Encapsulation Enforcer |
 | SM5 | Getter/Setter Detected | Encapsulation Enforcer |
 | SM6 | Class Name matches Noun–Verber Pattern | Naming Discipline |
-| SM7 | External Predicate (`is*/has*`) found | Tell–Don’t–Ask Eliminator |
+| SM7 | External Predicate (`is*/has*`) found | Tell–Don't–Ask Eliminator |
+| SM8 | Multiple Responsibilities Detected (2-5) | Class Extractor |
+| SM9 | Too Many Responsibilities (>5) | Requires Abstraction/User Input |
 
-### 4. Outputs
+### 5. Outputs
 Claude **MUST** produce both human-readable and machine-readable outputs.
 
 #### Human-Readable Report (Markdown)
@@ -75,6 +98,26 @@ Claude **MUST** produce both human-readable and machine-readable outputs.
   "classes": [
     {
       "name": "OrderService",
+      "responsibilities": [
+        {
+          "name": "Order",
+          "fields": ["orderData", "validationRules"],
+          "code_sections": ["lines 10-25", "submit() validation block"],
+          "confidence": "high"
+        },
+        {
+          "name": "Inventory",
+          "fields": ["stock", "reservations"],
+          "code_sections": ["lines 30-45", "submit() inventory block"],
+          "confidence": "high"
+        },
+        {
+          "name": "Payment",
+          "fields": ["gateway", "transactions"],
+          "code_sections": ["lines 50-65", "submit() payment block"],
+          "confidence": "medium"
+        }
+      ],
       "methods": [
         {
           "name": "submit",
@@ -92,7 +135,7 @@ Claude **MUST** produce both human-readable and machine-readable outputs.
       ],
       "cohesion_score": 0.72,
       "coupling_score": 0.65,
-      "smells": ["SM3", "SM4"]
+      "smells": ["SM3", "SM4", "SM8"]
     }
   ]
 }
@@ -107,9 +150,16 @@ REPEAT
   1) Collect Source Units
   2) Parse Structure (AST/Heuristic)
   3) Extract Entities (Classes, Methods, Fields)
-  4) Compute Metrics (LOC, Complexity, Cohesion, Coupling)
-  5) Detect Smells (SM1–SM7)
-  6) Generate Report + Model
+  4) Identify Responsibilities (Field Cohesion + Blank Lines + Comments + Semantics)
+     - Analyze field usage patterns → identify clusters
+     - Detect blank line separators between code sections
+     - Identify section comments marking responsibilities
+     - Group into 2-5 distinct responsibilities
+     - If >5, find higher-level abstractions or prompt user
+     - If 1, mark as single-responsibility (no extraction needed)
+  5) Compute Metrics (LOC, Complexity, Cohesion=1.0 target, Coupling≤0.3)
+  6) Detect Smells (SM1–SM9)
+  7) Generate Report + Model (including identified responsibilities)
 UNTIL All Files Analyzed
 ```
 
@@ -117,22 +167,22 @@ UNTIL All Files Analyzed
 
 ## 🧮 Metric Definitions
 
-| Metric | Formula | Range | Interpretation |
-|--------|----------|-------|----------------|
-| Cyclomatic Complexity | 1 + count(branch points) | ≥ 1 | Structural decision count |
-| Cohesion (TCC) | (shared fields / total fields) | 0–1 | Higher = better cohesion |
-| Coupling | (unique external calls / total calls) | 0–1 | Lower = better encapsulation |
-| Abstraction Depth | nesting levels | ≥ 0 | Lower = flatter control flow |
+| Metric | Formula | Range | Target | Interpretation |
+|--------|----------|-------|--------|----------------|
+| Cyclomatic Complexity | 1 + count(branch points) | ≥ 1 | ≤ 3.5 | Structural decision count |
+| Cohesion (TCC) | (shared fields / total fields) | 0–1 | 1.0 (ideal), ≥0.9 (fallback) | Higher = better cohesion, 1.0 = single responsibility |
+| Coupling | (unique external calls / total calls) | 0–1 | ≤ 0.3 | Lower = better encapsulation |
+| Abstraction Depth | nesting levels | ≥ 0 | ≤ 1 | Lower = flatter control flow |
 
 ---
 
 ## 📊 Outputs Required
 
-| Entity Type | Name | Metric Summary | Detected Smells | Next Agent |
-|--------------|------|----------------|-----------------|-------------|
-| Class | OrderService | LOC 74, Complexity 18, Cohesion 0.72 | SM1, SM4 | Extractor + Encapsulator |
-| Method | submit() | LOC 12, Complexity 6, Depth 3 | SM1, SM2 | Extractor |
-| Field | notifier | Visibility: public | SM4 | Encapsulator |
+| Entity Type | Name | Responsibilities | Metric Summary | Detected Smells | Next Agent |
+|--------------|------|------------------|----------------|-----------------|-------------|
+| Class | OrderService | 3 identified (Order, Inventory, Payment) | LOC 74, Complexity 18, Cohesion 0.72 | SM1, SM4, SM8 | Class Extractor → Encapsulator |
+| Method | submit() | N/A | LOC 12, Complexity 6, Depth 3 | SM1, SM2 | Method Extractor (after responsibility extraction) |
+| Field | notifier | N/A | Visibility: public | SM4 | Encapsulator |
 
 ---
 
@@ -150,9 +200,9 @@ Claude **MUST** halt analysis and report an error if any of the following occur:
 
 | Downstream Agent | Data Consumed | Usage |
 |------------------|---------------|-------|
-| Method Extractor | Method length, complexity, smells SM1–SM2 | Identify extraction candidates |
-| Control Normalizer | Control structure map, nesting depth | Normalize logic flow |
-| Cohesion Extractor | Field-method correlations | Class clustering |
-| Encapsulation Enforcer | Field visibility, getters/setters | Enforce data hiding |
-| Naming Discipline | Class/method names | Noun–verber detection |
-| Predicate Eliminator | Predicate map | Cross-object predicate removal |
+| **Class Extractor (Agent 3)** | **Identified responsibilities (2-5), field clusters, code sections** | **Primary consumer: extracts each responsibility to a new class** |
+| Method Extractor (Agent 2) | Method length, complexity, smells SM1–SM2 | **Runs AFTER all responsibility extraction, for readability only** |
+| Encapsulation Enforcer (Agent 4) | Field visibility, getters/setters | Enforce data hiding on extracted classes |
+| Ownership Enforcer (Agent 5) | Cross-object predicates | Enforce Tell-Don't-Ask on extracted classes |
+| Abstraction Enforcer (Agent 6) | Method abstraction levels, nesting depth | Enforce single-level abstraction on extracted classes |
+| Metrics Monitor (Agent 7) | Cohesion, coupling, complexity metrics | Check convergence (cohesion = 1.0 target) |

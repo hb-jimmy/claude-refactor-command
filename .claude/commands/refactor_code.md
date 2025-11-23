@@ -42,108 +42,154 @@ This document defines the complete process model, agent interactions, automation
 
 ---
 
-## ⚙️ Overview of the Nine-Agent Architecture
+## ⚙️ Overview of the Nine-Agent Architecture (RESPONSIBILITY-FIRST APPROACH)
 
-| # | Agent | Primary Responsibility |
-|--:|--------|------------------------|
-| **1** | **Code Structure Analyzer** | Parse and evaluate code structure, measure complexity, cohesion, and coupling. |
-| **2** | **Method Extraction & Control Normalization Agent** | Extract smaller, independent methods and flatten control flow. |
-| **3** | **Cohesion & Class Extraction Agent** | Group related methods and fields into cohesive classes with single responsibility. |
-| **4** | **Encapsulation Enforcer Agent** | Enforce strict data hiding, remove getters/setters, and verify naming discipline (noun–verber rule). |
-| **5** | **Ownership & Boundary Enforcement Agent** | Ensure domain objects act on their own data and boundaries remain pure (no DTO or adapter leakage). |
-| **6** | **Abstraction Enforcer Agent** | Guarantee single-level abstraction within all methods and delegation consistency. |
-| **7** | **Metrics & Convergence Monitor Agent** | Aggregate metrics, track stability trends, and detect convergence or regressions. |
-| **9** | **Code Implementation Agent** | Execute all identified refactorings, creating and modifying source files. |
-| **10** | **Refactoring Orchestrator Agent** | Manage agent sequencing, recursion, implementation phase, fail-fast responses, and convergence certification. |
+| # | Agent | Primary Responsibility | When It Runs |
+|--:|--------|------------------------| -------------|
+| **1** | **Code Structure Analyzer** | **Identify 2-5 distinct responsibilities per class** using field cohesion, blank lines, section comments, and semantic analysis. | First step at each depth level |
+| **3** | **Cohesion & Class Extraction Agent** | **Extract each identified responsibility** into its own class. Enforce 2-5 delegation constraint and anti-stovepipe validation. | After Agent 1 identifies 2+ responsibilities |
+| **4** | **Encapsulation Enforcer Agent** | Enforce strict data hiding, remove getters/setters, and verify naming discipline (noun–verber rule). | After Agent 3 extracts classes |
+| **5** | **Ownership & Boundary Enforcement Agent** | Ensure domain objects act on their own data and boundaries remain pure (no DTO or adapter leakage). | After Agent 4 |
+| **6** | **Abstraction Enforcer Agent** | Guarantee single-level abstraction within all methods and delegation consistency. | After Agent 5 |
+| **7** | **Metrics & Convergence Monitor Agent** | Check convergence: PRIMARY (cohesion=1.0 + one-sentence test) or FALLBACK (cohesion≥0.9 with human review). | After Agent 6 |
+| **9** | **Code Implementation Agent** | Execute all identified refactorings, creating and modifying source files. | When Agent 7 reports changes needed |
+| **2** | **Method Extraction Agent** | **FINAL POLISH ONLY**: Extract methods for readability after ALL responsibility extraction complete. | Only after all classes reach single responsibility |
+| **10** | **Refactoring Orchestrator Agent** | Manage **breadth-first recursion**, depth tracking (prompt if >5), human review prompts, and convergence certification. | Coordinates entire flow |
 
-Each agent's output feeds directly into the next in a **closed operational loop** under Orchestrator supervision.
+**CRITICAL CHANGE:** Agent 1 now identifies responsibilities FIRST. Agent 3 extracts them to classes. Agent 2 runs LAST for readability only.
 
 ---
 
-## 🔁 Main Execution Model
+## 🔁 Main Execution Model (BREADTH-FIRST RESPONSIBILITY EXTRACTION)
 
-### **Primary Control Loop**
+### **Breadth-First Control Loop**
 ```
-REPEAT
-  # ANALYSIS PHASE
-  0) Run Naming Audit Pre-Flight (Agent 4 in audit mode)
-  1) Analyze code structure and metrics (Agent 1)
-  2) Extract and normalize methods (Agent 2)
-  3) Identify and extract cohesive classes (Agent 3)
-  4) Enforce encapsulation and noun–verber naming rules (Agent 4)
-  5) Enforce ownership and boundary control (Agent 5)
-  6) Verify abstraction consistency (Agent 6)
-  7) Aggregate and evaluate convergence metrics (Agent 7)
+depth = 0
+classes_at_depth[0] = original_source_files
 
-  # IMPLEMENTATION PHASE (if needed)
-  9) IF convergence not achieved:
-       Execute code implementation (Agent 9)
-       Apply all identified refactorings
-     ENDIF
+WHILE classes_at_depth[depth] is not empty:
 
-  # ORCHESTRATION
-  10) Coordinate recursion, restart analysis, or finalize (Agent 10)
+  # DEPTH CHECK
+  IF depth > 5:
+    PROMPT user: "Recursion depth {depth} exceeded. Continue? (Yes/No)"
+    IF user says "No": BREAK
+  ENDIF
 
-UNTIL all convergence thresholds met OR fail-fast triggered
+  # ANALYSIS PHASE (for ALL classes at current depth)
+  FOR EACH class IN classes_at_depth[depth]:
+
+    1) Agent 1: Identify 2-5 distinct responsibilities
+       - Use field cohesion clustering
+       - Detect blank line separators
+       - Identify section comments
+       - Perform semantic analysis
+       - IF 1 responsibility found: Mark converged, SKIP to next class
+       - IF >5 responsibilities found: PROMPT user for grouping guidance
+
+    2) Agent 3: Extract each responsibility to its own class (if 2-5 found)
+       - Create 2-5 new classes (2-5 delegation constraint)
+       - Validate anti-stovepipe: single-method classes need ≥2 downstream deps
+       - Move field clusters and code to new classes
+
+    3) FOR EACH extracted class:
+         Agent 4: Enforce encapsulation and naming (noun-verber rule)
+         Agent 5: Enforce ownership (Tell-Don't-Ask)
+         Agent 6: Enforce abstraction (single-level)
+         Agent 7: Check convergence
+                  - PRIMARY: cohesion=1.0 AND one-sentence test passed
+                  - FALLBACK: cohesion≥0.9 AND complexity≤3.5 AND no more responsibilities
+                  - IF fallback: PROMPT user for review
+
+  ENDFOR
+
+  # IMPLEMENTATION PHASE (after all classes at depth processed)
+  4) IF any classes need implementation:
+       Agent 9: Implement all changes at current depth
+       Move extracted classes to classes_at_depth[depth+1]
+       depth = depth + 1
+     ELSE:
+       No more classes to extract - BREAK
+  ENDIF
+
+ENDWHILE
+
+# FINAL POLISH (only after ALL responsibility extraction complete)
+5) Agent 2: Extract methods for readability (no new classes)
+
+# CERTIFICATION
+6) Generate final convergence certification report
 ```
 
 Each agent's actions **MUST** be executed in the above sequence without omission or substitution.
-Intermediate outputs are immutable records that serve as formal checkpoints between agents.
+Breadth-first processing ensures all classes at one level are complete before descending deeper.
 
 ---
 
-## 🧱 Recursive Class Refinement
+## 🧱 Breadth-First Class Refinement
 
 ### **Purpose**
-When new classes are extracted by **Agent 3 (Cohesion & Class Extraction)**, the system recursively applies further refinement to those classes until stability is achieved.
+When new classes are extracted by **Agent 3 (Class Extraction)**, the system recursively applies further refinement using a **breadth-first** approach. All classes at depth N are fully processed before moving to depth N+1.
 
 ### **Rules**
-1. The Orchestrator **MUST** re-run the following sequence for every extracted class: **Agents 3 → 4 → 5 → 6**.  
-2. If the extracted class contains **three (3) or fewer methods**, the Orchestrator **SHOULD** begin at **Agent 4 (Encapsulation Enforcer)** instead.  
-3. Each recursion **MUST** conclude only when no further extractions or renames are possible.  
-4. All recursion cycles **MUST** verify naming compliance (noun–verber rule) before Agents 5 or 6 execute.  
+1. The Orchestrator **MUST** process all classes at the current depth level before descending.
+2. For each class, the Orchestrator **MUST** run: **Agent 1 → Agent 3 (if 2+ responsibilities) → Agents 4, 5, 6, 7**.
+3. Depth tracking is enforced: if depth > 5, **MUST** prompt user for permission to continue.
+4. Each class pursues **PRIMARY convergence** (cohesion=1.0 + one-sentence test) with **FALLBACK** (cohesion≥0.9 + human review) if primary unattainable.
 5. Recursive refinement **MUST NOT** introduce naming regressions or encapsulation violations.
+6. **Minimum extraction: 2 classes** - prevents useless stovepipe wrappers.
+7. **2-5 delegation constraint** - ensures cognitive manageability for humans.
 
-### **Execution Flow**
-```
-FOR EACH extracted_class IN new_classes:
-    RUN Agent 4 (Encapsulation Enforcer) in Naming Reevaluation mode
-    IF method_count > 3:
-        RUN Agents [3, 4, 5, 6] on extracted_class
-    ELSE:
-        RUN Agents [4, 5, 6] on extracted_class
-    ENDIF
-    IF extracted_class spawns new sub-classes:
-        RECURSE on each sub-class
-    ENDIF
-UNTIL no further extraction candidates exist
-```
+### **Key Changes from Previous Approach**
+- **Was:** Depth-first recursion on each extracted class immediately
+- **Now:** Breadth-first - complete all classes at depth N before depth N+1
+- **Was:** Agent 2 (Method Extractor) ran early
+- **Now:** Agent 2 runs LAST, only for readability polish after all responsibility extraction
+- **Was:** Cohesion target ≥ 0.9
+- **Now:** Cohesion target = 1.0 (ideal), ≥ 0.9 (fallback with human review)
 
 ### **Outcome**
-- Small, focused classes emerge naturally.  
-- System-level complexity decreases monotonically.  
-- All class names remain compliant with the **noun–verber rule**.  
-- Recursive cycles terminate automatically when abstraction and encapsulation purity reach equilibrium.
+- **More classes with fewer methods** - each class has exactly 1 responsibility
+- **Systematic decomposition** - level-by-level ensures complete coverage
+- **Cognitive manageability** - 2-5 delegation constraint maintained
+- **Human oversight** - prompted when depth > 5 or fallback convergence reached
+- All class names remain compliant with the **noun–verber rule**
 
 ---
 
 ## 🧮 Metrics and Convergence
 
-The **Metrics & Convergence Monitor (Agent 7)** evaluates the state of the refactoring loop and ensures all quantitative thresholds are met.  
-The following metrics **MUST** be collected every iteration:
+The **Metrics & Convergence Monitor (Agent 7)** evaluates the state of each class and determines convergence level.
+The following metrics **MUST** be collected for each class:
 
 | Metric | Description | Target | Source Agent |
 |--------|--------------|---------|---------------|
-| Cohesion | Relatedness of methods within each class | ≥ 0.9 | Class Extractor |
+| **Cohesion (PRIMARY)** | **Relatedness of methods within each class** | **1.0 (ideal), ≥ 0.9 (fallback)** | **Class Extractor** |
+| **One-Sentence Test (PRIMARY)** | **Class purpose describable without "and"** | **Pass (required for primary)** | **Metrics Monitor** |
 | Coupling | Inter-class dependency ratio | ≤ 0.3 | Class Extractor |
-| Complexity | Average cyclomatic complexity per method | ≤ 3.5 | Analyzer / Method Extractor |
+| Complexity | Average cyclomatic complexity per method | ≤ 3.5 | Analyzer |
 | Encapsulation | Private-field compliance | ≥ 0.95 | Encapsulation Enforcer |
 | Ownership | Domain objects act on internal data | ≥ 0.9 | Ownership Enforcer |
 | Abstraction Purity | Single-level abstraction compliance | ≥ 0.95 | Abstraction Enforcer |
+| **Delegation Count** | **Number of classes delegated to** | **2-5 (cognitive constraint)** | **Class Extractor** |
+| **Anti-Stovepipe** | **Single-method classes have ≥2 downstream deps** | **100%** | **Class Extractor** |
 | Naming Compliance | Classes conform to domain noun rule | 100% | Encapsulation Enforcer |
-| Convergence Stability | Δ improvement over 3 iterations | < 0.01 | Metrics Monitor |
 
-Convergence **MUST** be declared only when all metrics meet or exceed target thresholds **for three consecutive iterations**.
+### **Convergence Levels**
+
+**PRIMARY Convergence (Ideal Goal):**
+- Cohesion = 1.0 (perfect single responsibility)
+- One-sentence test passed (class purpose describable without "and")
+- Both metric AND semantic criteria met
+- Agent 1 identifies only 1 responsibility
+- **Action:** Mark class as converged, move to next class
+
+**FALLBACK Convergence (Pragmatic Goal):**
+- Cohesion ≥ 0.9 (near-single responsibility)
+- Complexity ≤ 3.5
+- No more distinct responsibilities identifiable by Agent 1
+- **Action:** Flag class for human review, prompt user for guidance
+
+Classes are evaluated individually. No "three consecutive iterations" requirement - each class converges when it reaches PRIMARY or FALLBACK criteria.
 
 ---
 
@@ -151,17 +197,24 @@ Convergence **MUST** be declared only when all metrics meet or exceed target thr
 
 Claude **MUST** immediately halt processing and signal the Orchestrator when any of the following occur:
 
-1. Public or protected fields appear in domain classes.  
-2. Getters/setters are reintroduced.  
-3. Cross-object predicates (`is*/has*`) appear outside their owning object.  
-4. Class names match forbidden patterns (`Manager`, `Processor`, `Handler`, `Service`, `Controller`).  
-5. Method length > 5 executable lines.  
-6. Nesting depth > 1 in any function.  
-7. Convergence metrics regress for two consecutive iterations.  
-8. Any agent fails to produce valid output or terminates unexpectedly.  
-9. Total iterations exceed 10 without convergence.  
+1. **Agent 1 provides no responsibility data** (integration failure between Agent 1 and 3).
+2. **Delegation count would exceed 5** without explicit user approval (violates 2-5 cognitive constraint).
+3. **Delegation count would be <2** (anti-stovepipe violation - cannot extract only 1 class).
+4. **Single-method extracted class has <2 downstream dependencies** (anti-stovepipe violation).
+5. **Any extracted class creates cyclic dependency**.
+6. **Two extracted classes share mutable state**.
+7. **Semantic equivalence cannot be maintained** during extraction.
+8. **Agent 1 flags >5 responsibilities** but user does not respond to grouping prompt.
+9. Public or protected fields appear in domain classes.
+10. Getters/setters are reintroduced.
+11. Cross-object predicates (`is*/has*`) appear outside their owning object.
+12. Class names match forbidden patterns (`Manager`, `Processor`, `Handler`, `Service`, `Controller`).
+13. Method length > 5 executable lines.
+14. Nesting depth > 1 in any function.
+15. Any agent fails to produce valid output or terminates unexpectedly.
+16. **Extraction stopped due to subjective clarity concerns** rather than technical violations.
 
-All fail-fast events **MUST** include diagnostic metadata, including iteration number, offending class, and triggering metric.
+All fail-fast events **MUST** include diagnostic metadata, including depth level, offending class, and triggering condition.
 
 ---
 

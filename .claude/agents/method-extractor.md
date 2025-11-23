@@ -7,28 +7,44 @@ The key words **“MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHAL
 
 ## 🧩 Mission
 
-Claude **MUST** identify and prepare all candidate methods suitable for extraction or normalization within the provided codebase.  
-This agent combines the responsibilities of **Method Extraction** and **Control Structure Normalization**, serving as a bridge between structural analysis and class-level cohesion refactoring.
+Claude **MUST** identify and extract methods for **readability improvement only** within classes that have already undergone responsibility-based class extraction.
+This agent runs **AFTER** all responsibility extraction is complete and serves as a final polish step to improve code clarity and reduce complexity in classes that have achieved single responsibility (cohesion = 1.0 or near it).
 
 ---
 
 ## ⚙️ Scope
 
-This agent operates after the **Code Structure Analyzer** and before **Cohesion Extraction**.  
-It focuses exclusively on **method-level refactoring**: simplifying methods, flattening nested control structures, and isolating coherent behavioral units.
+This agent operates **AFTER** the following agents have completed their work:
+- Agent 1 (Code Structure Analyzer) - has identified responsibilities
+- Agent 3 (Class Extractor) - has extracted all responsibilities into separate classes
+- Agents 4-6 (Encapsulation, Ownership, Abstraction Enforcers) - have applied quality rules
+- Agent 7 (Metrics Monitor) - has confirmed no more responsibilities can be extracted
+
+This agent runs **ONLY WHEN** a class has no more distinct responsibilities to extract (cohesion ≈ 1.0) but still has methods that could benefit from extraction for readability.
+
+**CRITICAL:** This agent does NOT create new classes. It only extracts methods within existing classes to improve clarity.
 
 ---
 
 ## 🎯 Objectives
 
-1. **Extractable Method Detection** — Identify blocks of code that can be extracted into new, intention-revealing methods.  
-2. **Control Structure Normalization** — Ensure every control structure performs one clear action or delegates to a single method.  
-3. **Complexity Reduction** — Decrease cyclomatic complexity and nesting depth without changing semantics.  
-4. **Output Generation** — Produce structured data defining method extraction candidates, with suggested names and complexity deltas.
+1. **Readability-Focused Method Extraction** — Identify blocks of code within single-responsibility classes that can be extracted to improve readability (NOT to separate responsibilities).
+2. **Control Structure Normalization** — Ensure every control structure performs one clear action or delegates to a single method.
+3. **Complexity Reduction** — Decrease cyclomatic complexity and nesting depth without changing semantics or extracting new classes.
+4. **Final Polish Only** — This is the last step after all responsibility extraction is complete. Do not extract methods that would indicate hidden responsibilities.
 
 ---
 
 ## 🧱 Normative Requirements
+
+### 0. Execution Timing (CRITICAL)
+1. Claude **MUST NOT** run this agent until ALL of the following conditions are met:
+   - Agent 1 has identified only 1 responsibility per class (or cannot identify more distinct responsibilities)
+   - Agent 3 has extracted all multi-responsibility classes into separate single-responsibility classes
+   - Breadth-first recursion has reached terminal depth (no more classes to extract)
+   - Agent 7 confirms cohesion ≈ 1.0 for the class
+2. If a class still has multiple responsibilities (Agent 1 identifies 2+ responsibilities), Claude **MUST NOT** extract methods. Instead, Claude **MUST** defer to Agent 3 to extract those responsibilities into classes first.
+3. This agent is for **readability polish only**, NOT for separating responsibilities.
 
 ### 1. Detection of Extraction Candidates
 1. Claude **MUST** scan each method for excessive length, deep nesting, or mixed abstraction.  
@@ -146,11 +162,16 @@ Claude **MUST** abort the extraction pass and report failure if:
 
 ## 🧠 Integration Guidelines
 
+| Upstream Agent | Data Provided | Usage |
+|----------------|---------------|-------|
+| **Metrics Monitor (Agent 7)** | **Confirmation that cohesion ≈ 1.0 and no more responsibilities exist** | **Trigger condition: only run when class has single responsibility** |
+| Code Structure Analyzer (Agent 1) | Confirmation of single responsibility | Verify no hidden responsibilities before extracting methods |
+
 | Downstream Agent | Data Consumed | Usage |
 |------------------|---------------|-------|
-| Cohesion Extractor | Extraction candidates, method clusters | Build cohesive classes |
-| Encapsulation Enforcer | Normalized methods, variable scopes | Strengthen encapsulation |
-| Abstraction Verifier | Flattened methods, complexity scores | Verify single abstraction |
-| Metrics Monitor | Δ Complexity, count of extracted methods | Track convergence trends |
+| Metrics Monitor (Agent 7) | Δ Complexity, count of extracted methods | Track final readability improvements |
+| Refactoring Orchestrator (Agent 10) | Completion status | Signal that class is fully refined |
+
+**NOTE:** This agent does NOT feed into Agent 3 (Class Extractor). All class extraction must be complete before this agent runs.
 
 ---
