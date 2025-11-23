@@ -1,0 +1,68 @@
+{
+  "name": "claude-refactor-plugin",
+  "version": "1.0.0",
+  "description": "A comprehensive multi-agent refactoring system for Claude Code that transforms complex codebases through recursive refinement",
+  "author": "Jimmy Balmert",
+  "license": "MIT",
+  "homepage": "https://github.com/yourusername/claude-refactor-plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/claude-refactor-plugin.git"
+  },
+  "keywords": [
+    "claude",
+    "refactoring",
+    "code-quality",
+    "clean-code",
+    "agent",
+    "automation"
+  ],
+  "commands": [
+    {
+      "name": "refactor_code",
+      "description": "Orchestrates nine specialized agents to analyze, refactor, and verify code through iterative cycles",
+      "path": ".claude/commands/refactor_code.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "code-structure-analyzer",
+      "path": ".claude/agents/code-structure-analyzer.md"
+    },
+    {
+      "name": "method-extractor",
+      "path": ".claude/agents/method-extractor.md"
+    },
+    {
+      "name": "class-extractor",
+      "path": ".claude/agents/class-extractor.md"
+    },
+    {
+      "name": "encapsulation-enforcer",
+      "path": ".claude/agents/encapsulation-enforcer.md"
+    },
+    {
+      "name": "ownership-boundary-enforcer",
+      "path": ".claude/agents/ownership-boundary-enforcer.md"
+    },
+    {
+      "name": "abstraction-enforcer",
+      "path": ".claude/agents/abstraction-enforcer.md"
+    },
+    {
+      "name": "metrics-monitor",
+      "path": ".claude/agents/metrics-monitor.md"
+    },
+    {
+      "name": "code-implementation",
+      "path": ".claude/agents/code-implementation.md"
+    },
+    {
+      "name": "refactor-orchestrator",
+      "path": ".claude/agents/refactor-orchestrator.md"
+    }
+  ],
+  "requirements": {
+    "claude-code": ">=1.0.0"
+  }
+}
