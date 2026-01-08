@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 jira-update = "jira_update.cli:main"
 jira-users = "jira_update.users:main"
+jira-read = "jira_update.read:main"
 
 [project.optional-dependencies]
 dev = [

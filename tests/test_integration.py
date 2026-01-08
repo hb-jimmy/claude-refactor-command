@@ -219,3 +219,56 @@ class TestJiraUpdateCombinedOperations:
             "--status", "To Do",
         ])
         assert restore_result.returncode == 0
+
+
+class TestJiraRead:
+    """Tests for jira-read command."""
+
+    def test_read_issue_json(self):
+        """Test reading issue details as JSON."""
+        result = run_command(["jira-read", TEST_ISSUE])
+
+        assert result.returncode == 0
+
+        output = json.loads(result.stdout)
+
+        # Verify required fields
+        assert output["key"] == TEST_ISSUE
+        assert "summary" in output
+        assert "description" in output
+        assert "status" in output
+        assert "issuetype" in output
+
+        # Verify nested structures
+        assert "project" in output
+        assert "key" in output["project"]
+        assert "name" in output["project"]
+
+        # Verify assignee structure (may be null)
+        if output["assignee"]:
+            assert "display_name" in output["assignee"]
+            assert "email" in output["assignee"]
+            assert "account_id" in output["assignee"]
+
+        # Verify reporter structure (may be null)
+        if output["reporter"]:
+            assert "display_name" in output["reporter"]
+            assert "email" in output["reporter"]
+            assert "account_id" in output["reporter"]
+
+        # Verify linked_issues is a list
+        assert isinstance(output["linked_issues"], list)
+
+        # Verify timestamps
+        assert "created" in output
+        assert "updated" in output
+
+    def test_read_issue_type(self):
+        """Test that issue type is returned correctly."""
+        result = run_command(["jira-read", TEST_ISSUE])
+
+        assert result.returncode == 0
+
+        output = json.loads(result.stdout)
+        # HB-7162 is a Story
+        assert output["issuetype"] == "Story"
