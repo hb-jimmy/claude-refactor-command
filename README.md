@@ -1,8 +1,72 @@
-# Claude Code Refactoring Plugin
+# Claude Code Utilities
 
-A comprehensive, multi-agent refactoring system for Claude Code that systematically transforms complex codebases into clean, maintainable, well-structured code through recursive refinement.
+A collection of CLI tools and Claude Code commands for Jira, Slack, and code refactoring.
 
-## Overview
+## Quick Start: CLI Tools
+
+### Installation
+
+```bash
+git clone https://github.com/hb-jimmy/claude-refactor-command.git
+cd claude-refactor-command
+pip install -e .
+```
+
+### Jira Tools
+
+Requires `~/.jira-config.yaml`:
+```yaml
+email: "your.email@example.com"
+api_token: "your-jira-api-token"
+```
+
+| Command | Description |
+|---------|-------------|
+| `jira-read HB-123` | Get issue details as JSON |
+| `jira-update HB-123 -m "comment"` | Add comment to issue |
+| `jira-update HB-123 -s "In Progress"` | Change issue status |
+| `jira-users` | List all Jira users |
+
+### Slack Tools
+
+First-time setup:
+1. Create a Slack App at https://api.slack.com/apps
+2. Add OAuth scopes: `chat:write`, `channels:read`, `groups:read`, `users:read`, `users:read.email`
+3. Add redirect URL: `https://localhost:8765/oauth/callback`
+4. Add to `~/.slack-config.yaml`:
+   ```yaml
+   client_id: "your-client-id"
+   client_secret: "your-client-secret"
+   ```
+5. Run `slack-update --auth` to authenticate
+
+| Command | Description |
+|---------|-------------|
+| `slack-update C01234567 "message"` | Post message to channel |
+| `slack-users` | Fetch users to `~/.slack-users.json` |
+| `slack-channels` | Fetch channels to `~/.slack-channels.json` |
+
+### thb-flow Command
+
+A Claude Code slash command for starting work on Jira stories:
+```
+/thb-flow HB-123
+```
+
+This command:
+- Validates the issue exists and is workable
+- Assigns the issue to you (if unassigned)
+- Transitions to "In Progress"
+- Creates or switches to a feature branch
+- Displays story details
+
+---
+
+## Refactoring Plugin
+
+A multi-agent refactoring system for Claude Code that transforms complex codebases into clean, maintainable code.
+
+### Overview
 
 This plugin provides the `/refactor_code` command, which orchestrates nine specialized agents to analyze, refactor, and verify code through multiple iterative cycles until convergence is achieved.
 
@@ -15,33 +79,17 @@ This plugin provides the `/refactor_code` command, which orchestrates nine speci
 - **Fail-Fast**: Built-in safeguards prevent regressions and violations
 - **Semantic Preservation**: Maintains exact behavioral equivalence throughout refactoring
 
-## Installation
+### Installation
 
-### Method 1: Direct Copy
-
-1. Clone or download this repository:
-   ```bash
-   git clone https://github.com/hb-jimmy/claude-refactor-command.git
-   ```
-
-2. Copy the `.claude` directory to your home directory:
-   ```bash
-   cp -r claude-refactor-command/.claude/* ~/.claude/
-   ```
-
-3. The command will be immediately available in Claude Code
-
-### Method 2: Symlink
-
-If you want to keep the plugin updated via git:
-
+Copy the `.claude` directory to your home directory:
 ```bash
-# Clone the repository
-git clone https://github.com/hb-jimmy/claude-refactor-command.git
+cp -r .claude/* ~/.claude/
+```
 
-# Create symlinks
-ln -s "$(pwd)/claude-refactor-command/.claude/commands/refactor_code.md" ~/.claude/commands/
-ln -s "$(pwd)/claude-refactor-command/.claude/agents/"* ~/.claude/agents/
+Or symlink to keep updated via git:
+```bash
+ln -s "$(pwd)/.claude/commands/"* ~/.claude/commands/
+ln -s "$(pwd)/.claude/agents/"* ~/.claude/agents/
 ```
 
 ## Usage
