@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jira-update"
 version = "0.1.0"
-description = "CLI tools for Jira: update tickets and list users"
+description = "CLI tools for Jira and Slack: update tickets, post messages, and list users"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -21,6 +21,9 @@ dependencies = [
 jira-update = "jira_update.cli:main"
 jira-users = "jira_update.users:main"
 jira-read = "jira_update.read:main"
+slack-update = "slack_update.cli:main"
+slack-users = "slack_update.users:main"
+slack-channels = "slack_update.channels:main"
 
 [project.optional-dependencies]
 dev = [
@@ -29,4 +32,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["jira_update*"]
+include = ["jira_update*", "slack_update*"]
