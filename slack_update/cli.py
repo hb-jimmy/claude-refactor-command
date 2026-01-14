@@ -53,7 +53,7 @@ Examples:
   slack-update --auth
 
 Finding Channel IDs:
-  In Slack, right-click a channel → "View channel details" → scroll to bottom
+  In Slack, right-click a channel -> "View channel details" -> scroll to bottom
   to find the Channel ID (starts with 'C').
 
 Setup:

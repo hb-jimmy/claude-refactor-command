@@ -233,13 +233,13 @@ def print_result(result: UpdateResult, use_json: bool) -> None:
 
     # Human-readable output
     if result.comment_added:
-        print(f"✓ Added comment to {result.issue_key}")
+        print(f"Added comment to {result.issue_key}")
 
     if result.status_changed:
-        print(f"✓ Status changed: \"{result.old_status}\" → \"{result.new_status}\"")
+        print(f"Status changed: \"{result.old_status}\" -> \"{result.new_status}\"")
 
     for error in result.errors:
-        print(f"✗ {error}", file=sys.stderr)
+        print(f"Error: {error}", file=sys.stderr)
 
 
 def print_assign_result(result: AssignResult, use_json: bool) -> None:
@@ -261,10 +261,10 @@ def print_assign_result(result: AssignResult, use_json: bool) -> None:
 
     # Human-readable output
     if result.assigned:
-        print(f"✓ Assigned {result.issue_key} to {result.assignee_name}")
+        print(f"Assigned {result.issue_key} to {result.assignee_name}")
 
     for error in result.errors:
-        print(f"✗ {error}", file=sys.stderr)
+        print(f"Error: {error}", file=sys.stderr)
 
 
 def run_update(issue_key: str, message: Optional[str], status: Optional[str], client: JiraClient) -> UpdateResult:
