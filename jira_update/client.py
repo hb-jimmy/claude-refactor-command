@@ -274,25 +274,37 @@ class JiraClient:
             adf: ADF document structure.
 
         Returns:
-            Plain text content.
+            Plain text content with newlines between block elements.
         """
         if not adf or not isinstance(adf, dict):
             return ""
 
-        text_parts = []
+        text_parts: List[str] = []
+        block_types = {"paragraph", "heading", "bulletList", "orderedList", "codeBlock"}
 
-        def extract_recursive(node: Any) -> None:
+        def extract_recursive(node: Any, is_block: bool = False) -> None:
             if isinstance(node, dict):
-                if node.get("type") == "text":
+                node_type = node.get("type", "")
+                is_block_node = node_type in block_types
+
+                if node_type == "text":
                     text_parts.append(node.get("text", ""))
+                elif node_type == "hardBreak":
+                    text_parts.append("\n")
+
                 for child in node.get("content", []):
-                    extract_recursive(child)
+                    extract_recursive(child, is_block_node)
+
+                # Add newline after block elements
+                if is_block_node:
+                    text_parts.append("\n")
+
             elif isinstance(node, list):
                 for item in node:
                     extract_recursive(item)
 
         extract_recursive(adf)
-        return "".join(text_parts)
+        return "".join(text_parts).strip()
 
     def get_transitions(self, issue_key: str) -> List[JiraTransition]:
         """
