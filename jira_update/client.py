@@ -233,6 +233,67 @@ class JiraClient:
             created=data.get("created", ""),
         )
 
+    def get_comments(self, issue_key: str) -> List[JiraComment]:
+        """
+        Get all comments for a Jira issue.
+
+        Args:
+            issue_key: The issue key (e.g., "HB-123").
+
+        Returns:
+            List of JiraComment objects, ordered by creation time (oldest first).
+
+        Raises:
+            JiraApiError: If comments cannot be fetched.
+        """
+        endpoint = f"/rest/api/3/issue/{issue_key}/comment"
+
+        data = self._request("GET", endpoint)
+
+        if not data:
+            return []
+
+        comments = []
+        for c in data.get("comments", []):
+            # Extract body text from ADF format
+            body = self._extract_text_from_adf(c.get("body", {}))
+            comments.append(JiraComment(
+                id=c.get("id", ""),
+                body=body,
+                author=c.get("author", {}).get("displayName", ""),
+                created=c.get("created", ""),
+            ))
+
+        return comments
+
+    def _extract_text_from_adf(self, adf: Dict[str, Any]) -> str:
+        """
+        Extract plain text from Atlassian Document Format.
+
+        Args:
+            adf: ADF document structure.
+
+        Returns:
+            Plain text content.
+        """
+        if not adf or not isinstance(adf, dict):
+            return ""
+
+        text_parts = []
+
+        def extract_recursive(node: Any) -> None:
+            if isinstance(node, dict):
+                if node.get("type") == "text":
+                    text_parts.append(node.get("text", ""))
+                for child in node.get("content", []):
+                    extract_recursive(child)
+            elif isinstance(node, list):
+                for item in node:
+                    extract_recursive(item)
+
+        extract_recursive(adf)
+        return "".join(text_parts)
+
     def get_transitions(self, issue_key: str) -> List[JiraTransition]:
         """
         Get available status transitions for an issue.
@@ -406,3 +467,72 @@ class JiraClient:
         json_data = {"accountId": account_id}
 
         self._request("PUT", endpoint, json_data=json_data)
+
+    def add_rich_comment(self, issue_key: str, adf_content: List[Dict[str, Any]]) -> JiraComment:
+        """
+        Add a comment to a Jira issue using Atlassian Document Format.
+
+        This method allows for rich formatting including @mentions.
+
+        Args:
+            issue_key: The issue key (e.g., "HB-123").
+            adf_content: Comment body in ADF format (the "content" array).
+
+        Returns:
+            JiraComment with the created comment details.
+
+        Raises:
+            JiraApiError: If the comment cannot be added.
+        """
+        endpoint = f"/rest/api/3/issue/{issue_key}/comment"
+
+        json_data = {
+            "body": {
+                "type": "doc",
+                "version": 1,
+                "content": adf_content,
+            }
+        }
+
+        data = self._request("POST", endpoint, json_data=json_data)
+
+        if not data:
+            raise JiraApiError(f"No data returned when adding comment to {issue_key}")
+
+        return JiraComment(
+            id=data.get("id", ""),
+            body="[rich content]",
+            author=data.get("author", {}).get("displayName", ""),
+            created=data.get("created", ""),
+        )
+
+    @staticmethod
+    def build_adf_text(text: str) -> Dict[str, Any]:
+        """Build an ADF text node."""
+        return {"type": "text", "text": text}
+
+    @staticmethod
+    def build_adf_mention(account_id: str, display_name: str) -> Dict[str, Any]:
+        """Build an ADF mention node for @user references."""
+        return {
+            "type": "mention",
+            "attrs": {
+                "id": account_id,
+                "text": f"@{display_name}",
+                "accessLevel": "",
+            }
+        }
+
+    @staticmethod
+    def build_adf_paragraph(content: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build an ADF paragraph containing text and/or mentions."""
+        return {"type": "paragraph", "content": content}
+
+    @staticmethod
+    def build_adf_heading(text: str, level: int = 2) -> Dict[str, Any]:
+        """Build an ADF heading node."""
+        return {
+            "type": "heading",
+            "attrs": {"level": level},
+            "content": [{"type": "text", "text": text}]
+        }

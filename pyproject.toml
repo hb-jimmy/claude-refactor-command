@@ -21,6 +21,7 @@ dependencies = [
 jira-update = "jira_update.cli:main"
 jira-users = "jira_update.users:main"
 jira-read = "jira_update.read:main"
+jira-latest-comment = "jira_update.latest_comment:main"
 slack-update = "slack_update.cli:main"
 slack-users = "slack_update.users:main"
 slack-channels = "slack_update.channels:main"

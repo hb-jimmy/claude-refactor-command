@@ -92,6 +92,19 @@ Examples:
 
     Expected outcome: The comment is rendered with Jira formatting applied.
 
+  Post a rich comment with @mentions using ADF format:
+    jira-update HB-123 --adf -m '[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Added authentication"}]},{"type":"paragraph","content":[{"type":"text","text":"Pairing: "},{"type":"mention","attrs":{"id":"712020:abc123","text":"@John Smith","accessLevel":""}}]},{"type":"paragraph","content":[{"type":"text","text":"Users can now log in with SSO credentials."}]}]'
+
+    Expected outcome: Comment is posted with a heading, clickable @mention, and body text.
+
+ADF Format (for --adf flag):
+  When --adf is specified, --message must be a JSON array of ADF content nodes.
+  Common node types:
+    - Heading: {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Title"}]}
+    - Paragraph: {"type":"paragraph","content":[...nodes...]}
+    - Text: {"type":"text","text":"Your text here"}
+    - Mention: {"type":"mention","attrs":{"id":"account_id","text":"@Display Name","accessLevel":""}}
+
   Get JSON output for scripting:
     jira-update HB-123 -m "Automated update" --json
 
@@ -172,6 +185,14 @@ Valid Statuses:
         action="store_true",
         help="Output results as JSON for scripting/automation. "
              "Includes full operation details, issue info, and any errors.",
+    )
+
+    parser.add_argument(
+        "--adf",
+        action="store_true",
+        help="Interpret --message as ADF (Atlassian Document Format) JSON. "
+             "The message must be a JSON array of ADF content nodes. "
+             "Use this for rich formatting with @mentions.",
     )
 
     return parser
@@ -267,7 +288,7 @@ def print_assign_result(result: AssignResult, use_json: bool) -> None:
         print(f"Error: {error}", file=sys.stderr)
 
 
-def run_update(issue_key: str, message: Optional[str], status: Optional[str], client: JiraClient) -> UpdateResult:
+def run_update(issue_key: str, message: Optional[str], status: Optional[str], client: JiraClient, use_adf: bool = False) -> UpdateResult:
     """
     Execute the update operations on a Jira issue.
 
@@ -311,8 +332,15 @@ def run_update(issue_key: str, message: Optional[str], status: Optional[str], cl
     # Add comment if provided
     if message:
         try:
-            client.add_comment(issue_key, message)
+            if use_adf:
+                # Parse message as ADF JSON content array
+                adf_content = json.loads(message)
+                client.add_rich_comment(issue_key, adf_content)
+            else:
+                client.add_comment(issue_key, message)
             comment_added = True
+        except json.JSONDecodeError as e:
+            errors.append(f"Failed to parse ADF JSON: {e}")
         except JiraApiError as e:
             errors.append(f"Failed to add comment: {e}")
 
@@ -453,6 +481,15 @@ def main() -> int:
         )
         return 1
 
+    # Validate: --adf requires --message
+    if args.adf and not args.message:
+        print(
+            "Error: --adf requires --message to be specified.\n"
+            "Provide the ADF JSON content via --message.",
+            file=sys.stderr
+        )
+        return 1
+
     # Require at least one action
     if not is_assign_mode and not args.message and not args.status:
         print(
@@ -487,7 +524,7 @@ def main() -> int:
     else:
         # Update mode (comment/status)
         try:
-            result = run_update(args.issue, args.message, args.status, client)
+            result = run_update(args.issue, args.message, args.status, client, use_adf=args.adf)
         except Exception as e:
             print(f"Error: Unexpected error: {e}", file=sys.stderr)
             return 1
