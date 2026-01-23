@@ -26,6 +26,7 @@ api_token: "your-jira-api-token"
 | `jira-update HB-123 -m "comment"` | Add comment to issue |
 | `jira-update HB-123 -s "In Progress"` | Change issue status |
 | `jira-users` | List all Jira users |
+| `jira-latest-comment HB-123` | Get SHA from latest THB Automated Summary |
 
 ### Slack Tools
 
@@ -46,9 +47,11 @@ First-time setup:
 | `slack-users` | Fetch users to `~/.slack-users.json` |
 | `slack-channels` | Fetch channels to `~/.slack-channels.json` |
 
-### thb-flow Command
+### Claude Code Commands
 
-A Claude Code slash command for starting work on Jira stories:
+#### /thb-flow
+
+Start work on a Jira story:
 ```
 /thb-flow HB-123
 ```
@@ -59,6 +62,20 @@ This command:
 - Transitions to "In Progress"
 - Creates or switches to a feature branch
 - Displays story details
+
+#### /thb-update
+
+Post a progress update to Jira:
+```
+/thb-update
+```
+
+This command:
+- Extracts Jira issue key from current branch name
+- Finds changes since last THB Automated Summary (or merge-base)
+- Generates a non-technical summary of what was achieved
+- Optionally includes pairing partner mentions
+- Posts formatted update to Jira with SHA tracking
 
 ---
 
