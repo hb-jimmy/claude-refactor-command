@@ -166,11 +166,12 @@ Start work on a Jira story. Run this when beginning a new task.
 
 ### /thb-update
 
-Post a progress update to Jira summarizing recent work.
+Post a progress update to Jira summarizing recent work. Optionally posts to Slack if configured.
 
 ```
 /thb-update
-/thb-update commits  # Include commit messages in analysis
+/thb-update commits    # Include commit messages in analysis
+/thb-update --no-slack # Skip Slack posting even if configured
 ```
 
 **What it does:**
@@ -180,6 +181,14 @@ Post a progress update to Jira summarizing recent work.
 4. Optionally includes pairing partner @mentions
 5. Previews the update for approval before posting
 6. Posts formatted comment with SHA tracking for incremental updates
+7. If Slack is configured, asks to post the same update to Slack (with Slack @mentions)
+
+**Slack Integration:**
+- Automatically detects Slack configuration (`user_token` in `~/.slack-config.yaml` or `SLACK_USER_TOKEN` env var)
+- Prompts for target channel on first use (saves to `update_channel_id` in config)
+- Maps Jira @mentions to Slack @mentions by matching email addresses
+- Use `--no-slack` to skip Slack posting
+- Slack failures are non-fatal (Jira update is primary)
 
 **Requires:** All changes committed (uses SHA tracking)
 
@@ -192,3 +201,16 @@ Both `/thb-flow` and `/thb-update` cache Jira users at `/tmp/jira-users-cache.js
 See README.md for setup instructions. Tools expect:
 - Jira: `~/.jira-config.yaml` with email and api_token
 - Slack: `~/.slack-config.yaml` with client_id and client_secret, then `slack-update --auth`
+
+### Slack Configuration for /thb-update
+
+To enable Slack posting in `/thb-update`, ensure your `~/.slack-config.yaml` has:
+
+```yaml
+user_token: xoxp-...        # Required - obtained via slack-update --auth
+update_channel_id: C0ABC123 # Optional - will prompt on first use if missing
+```
+
+Or use environment variables:
+- `SLACK_USER_TOKEN` - Slack API token
+- `SLACK_UPDATE_CHANNEL_ID` - Target channel ID (overrides config file)

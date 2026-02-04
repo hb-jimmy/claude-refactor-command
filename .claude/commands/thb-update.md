@@ -1,15 +1,69 @@
 # THB Update - Post Progress Update to Jira
 
-This command helps you summarize changes on the current branch and publish an update to the associated Jira ticket.
+This command helps you summarize changes on the current branch and publish an update to the associated Jira ticket. If Slack is configured, it can also post the same update to a Slack channel.
 
 ## User Input
 $ARGUMENTS
+
+**Supported flags:**
+- `commits` - Include commit messages in analysis
+- `--no-slack` - Skip Slack posting even if configured
 
 ## Workflow
 
 When invoked, follow this checklist workflow to post a progress update:
 
-### 1. Identify Jira Issue
+### 1. Detect Slack Configuration
+
+Check if Slack is configured for posting updates. Slack is considered configured if a `user_token` is available.
+
+**Check for user token:**
+1. Check environment variable `SLACK_USER_TOKEN`
+2. Check `~/.slack-config.yaml` for `user_token` field
+
+**If user token is found AND `--no-slack` is NOT in $ARGUMENTS:**
+- Set `slack_enabled = true`
+- Proceed to check channel configuration (step 1b)
+
+**If user token is NOT found OR `--no-slack` is in $ARGUMENTS:**
+- Set `slack_enabled = false`
+- Skip to step 2
+
+#### 1b. Check Slack Channel Configuration
+
+**Check for channel ID:**
+1. Check environment variable `SLACK_UPDATE_CHANNEL_ID`
+2. Check `~/.slack-config.yaml` for `update_channel_id` field
+
+**If channel ID is found:**
+- Store as `slack_channel_id`
+- Proceed to step 2
+
+**If channel ID is NOT found:**
+- Ask the user: "Slack is configured but no update channel is set. What Slack channel should updates be posted to? (e.g., #team-updates)"
+- Wait for user input (they should provide a channel name like `#test-channel` or `test-channel`)
+
+**Look up channel ID from name:**
+1. Strip leading `#` from the channel name if present
+2. Check cached channels at `~/.slack-channels.json`:
+   - Load the file and search the `channels` array for a matching `name`
+   - If found, use the `id` field
+3. If not found in cache or cache doesn't exist:
+   - Run `slack-channels` to fetch and cache all channels
+   - Search the updated `~/.slack-channels.json` for the channel name
+4. If still not found:
+   - Inform the user: "Could not find channel '{name}'. Please verify the channel name and ensure you have access."
+   - Set `slack_enabled = false` and proceed without Slack
+
+**Save channel ID to config:**
+Once the channel ID is resolved, save it to `~/.slack-config.yaml` for future use:
+1. Read existing `~/.slack-config.yaml` content
+2. Add/update the `update_channel_id` field with the resolved ID
+3. Write back to the file (preserve other fields like `client_id`, `client_secret`, `user_token`)
+
+Store the `slack_channel_id` for step 10.
+
+### 2. Identify Jira Issue
 
 Extract the Jira issue key from the current git branch name:
 ```bash
@@ -29,14 +83,14 @@ jira-read {issue_key}
 
 If the issue doesn't exist, inform the user and abort.
 
-### 2. Verify Issue Status
+### 3. Verify Issue Status
 
 Check the issue status from the jira-read output.
 
 **If status is "To Do", "Backlog", or "Open":**
 - Prompt the user: "This issue is currently in '{status}' status. Would you like me to move it to 'In Progress' and assign it to you?"
 - If yes:
-  - Determine current user (see step 4)
+  - Determine current user (see step 6)
   - Run: `jira-update {issue_key} --status "In Progress"`
   - Run: `jira-update {issue_key} --assign`
 - If no, proceed without changing status.
@@ -45,7 +99,7 @@ Check the issue status from the jira-read output.
 - Warn: "This issue is marked as '{status}'. Are you sure you want to post an update?"
 - If no, abort.
 
-### 3. Check for Uncommitted Changes
+### 4. Check for Uncommitted Changes
 
 Before generating a summary, ensure all changes are committed:
 ```bash
@@ -60,9 +114,9 @@ git status --porcelain
   - If no: Abort the workflow with message "Please commit your changes and run /thb-update again."
 
 **If working tree is clean:**
-- Proceed to step 4
+- Proceed to step 5
 
-### 4. Find Last THB Update SHA
+### 5. Find Last THB Update SHA
 
 Get the SHA to use as the starting point for the summary:
 ```bash
@@ -73,9 +127,9 @@ This returns JSON with a SHA:
 - If a previous "THB Automated Summary" comment exists, returns that commit SHA
 - If no previous comment exists, returns the merge-base SHA with main/master
 
-Store this SHA for use in step 6.
+Store this SHA for use in step 8.
 
-### 5. Identify Current User
+### 6. Identify Current User
 
 Determine the current user for assignment and display:
 
@@ -87,16 +141,16 @@ Determine the current user for assignment and display:
 
 Store the user's `account_id` and `display_name` for later use.
 
-### 6. Identify Pairing Partners
+### 7. Identify Pairing Partners
 
 **Ask the user:**
 "Are you pairing with anyone on this work?"
 
-**If no:** Continue to step 7 (no pairing section will be included in the update).
+**If no:** Continue to step 8 (no pairing section will be included in the update).
 
 **If yes:**
 
-1. Check commit authors for potential pairing partners (commits since the SHA from step 4):
+1. Check commit authors for potential pairing partners (commits since the SHA from step 5):
    ```bash
    git log {sha}..HEAD --format='%ae' | sort -u
    ```
@@ -114,9 +168,9 @@ Store the user's `account_id` and `display_name` for later use.
      - Search again
      - If still not found, abort with error: "Could not find Jira user matching '{input}'. Please verify the name/email."
 
-5. Store each partner's `account_id` and `display_name` for the comment.
+5. Store each partner's `account_id`, `display_name`, and `email` for the comment (email is needed for Slack user matching).
 
-### 7. Generate Change Summary
+### 8. Generate Change Summary
 
 **Get the current HEAD SHA (short form):**
 ```bash
@@ -127,13 +181,13 @@ Store this as `{current_sha}` for the comment header.
 
 **Get the code diff since the last update:**
 ```bash
-git diff {sha_from_step_4}..HEAD
+git diff {sha_from_step_5}..HEAD
 ```
 
 **If user included "commits" in $ARGUMENTS:**
 Also gather commit messages:
 ```bash
-git log {sha_from_step_4}..HEAD --format='%s%n%b' --no-merges
+git log {sha_from_step_5}..HEAD --format='%s%n%b' --no-merges
 ```
 
 **Generate a user-facing summary:**
@@ -149,7 +203,7 @@ Analyze the diff and create a summary that:
 1. A brief one-line header summarizing the changes
 2. A detailed multi-paragraph description
 
-### 8. Preview and Approve
+### 9. Preview and Approve
 
 Display the formatted comment to the user:
 
@@ -178,7 +232,7 @@ Pairing: @{partner1_display_name}, @{partner2_display_name}
 
 If the user wants to edit, make the requested changes and preview again.
 
-### 9. Post Update to Jira
+### 10. Post Update to Jira
 
 Build the ADF JSON content array:
 
@@ -211,13 +265,91 @@ jira-update {issue_key} --adf --message '{adf_json}'
 **On success:**
 - Inform the user: "Update posted to {issue_key}: {issue_summary}"
 - Provide a link to the issue if possible
+- Proceed to step 11 (Slack posting)
 
 **On failure:**
 - Display the error message
 - Offer to retry or save the comment for manual posting
+- If user cancels retry, skip Slack posting
+
+### 11. Post Update to Slack (if enabled)
+
+**If `slack_enabled` is false:**
+- Skip this step entirely, workflow is complete
+
+**If `slack_enabled` is true:**
+
+#### 11a. Confirm Slack Posting
+
+Ask the user: "Would you also like to post this update to Slack?"
+
+**If no:** Skip Slack posting, workflow is complete.
+
+**If yes:** Proceed to step 11b.
+
+#### 11b. Resolve Slack User Mentions for Pairing Partners
+
+**If there are pairing partners:**
+
+For each partner, find their corresponding Slack user by email:
+
+1. Load cached Slack users from `~/.slack-users.json`
+2. Search for a user with matching `email` field (case-insensitive)
+3. If found, store the Slack user's `id` for mention formatting
+
+**If email match is not found:**
+1. Run `slack-users` to refresh the cache
+2. Search again
+3. If still not found by exact email match, search for similar users:
+   - Look for partial name matches in `display_name` or `real_name`
+   - Present up to 3 closest matches to the user
+   - Ask: "I couldn't find a Slack user with email '{email}'. Did you mean one of these?"
+   - If user selects a match, use that Slack user ID
+   - If user says none match or skips, omit that partner from Slack mentions
+
+Store each resolved Slack user ID for formatting.
+
+#### 11c. Format Slack Message
+
+Build the Slack message using mrkdwn format:
+
+**With pairing partners (where Slack IDs were resolved):**
+```
+*THB Automated Summary: {current_sha}*
+*{brief_header}*
+Pairing: <@{slack_user_id1}>, <@{slack_user_id2}>
+
+{detailed_description}
+```
+
+**Without pairing or no Slack IDs resolved:**
+```
+*THB Automated Summary: {current_sha}*
+*{brief_header}*
+
+{detailed_description}
+```
+
+Note: Slack @mentions use the format `<@USER_ID>` (e.g., `<@U01234567>`).
+
+#### 11d. Post to Slack
+
+```bash
+slack-update {slack_channel_id} "{slack_message}"
+```
+
+**On success:**
+- Inform the user: "Update also posted to Slack"
+- Workflow is complete
+
+**On failure:**
+- Display the error message but DO NOT fail the workflow
+- Inform the user: "Slack posting failed, but the Jira update was successful: {error}"
+- Workflow is complete (Jira update is the primary success criteria)
 
 ## Available Tools
 
+### Jira Tools
 - `jira-read {issue}` - Fetch issue details (JSON output)
 - `jira-update {issue} --message "text"` - Add plain text comment
 - `jira-update {issue} --message '{adf_json}' --adf` - Add rich comment with ADF format
@@ -225,9 +357,34 @@ jira-update {issue_key} --adf --message '{adf_json}'
 - `jira-update {issue} --assign` - Assign to self
 - `jira-users` - List all Jira users (JSON output)
 - `jira-latest-comment {issue}` - Get SHA from latest THB Automated Summary (JSON output)
+
+### Slack Tools
+- `slack-update {channel_id} "message"` - Post message to Slack channel
+- `slack-channels` - Fetch and cache Slack channels to `~/.slack-channels.json`
+- `slack-users` - Fetch and cache Slack users to `~/.slack-users.json`
+
+### Git Tools
 - `git diff {sha}..HEAD` - Get diff since a specific commit
 - `git log {sha}..HEAD` - Get commit history since a specific commit
 - `git rev-parse --short HEAD` - Get current HEAD short SHA
+
+## Configuration Files
+
+### Jira
+- `~/.jira-config.yaml` - Contains `email` and `api_token`
+- `/tmp/jira-users-cache.json` - Cached Jira users
+
+### Slack
+- `~/.slack-config.yaml` - Contains:
+  - `user_token` - Slack API token (required for Slack integration)
+  - `update_channel_id` - Target channel for updates (saved after first prompt)
+  - `client_id`, `client_secret` - OAuth credentials (for initial setup)
+- `~/.slack-channels.json` - Cached Slack channels
+- `~/.slack-users.json` - Cached Slack users
+
+### Environment Variables (override config files)
+- `SLACK_USER_TOKEN` - Slack API token
+- `SLACK_UPDATE_CHANNEL_ID` - Target channel ID for updates
 
 ## Notes
 
@@ -235,7 +392,12 @@ jira-update {issue_key} --adf --message '{adf_json}'
 - The header format is "THB Automated Summary: {sha}" to identify and track updates
 - The Pairing section is omitted entirely when working solo (not shown as empty)
 - Summaries should be non-technical and focus on what was achieved
-- Always get user approval before posting
+- Always get user approval before posting to Jira
+- Slack posting requires separate confirmation after Jira is posted
+- Use `--no-slack` flag to skip Slack posting entirely
+- Slack failures are non-fatal - Jira update is the primary success criteria
 - Use the cached user data at `/tmp/jira-users-cache.json` for efficiency
 - Refresh the cache with `jira-users` only when a user cannot be found
 - Subsequent updates only summarize changes since the last THB Automated Summary
+- When matching Jira users to Slack users for mentions, match by email address
+- If email match fails, suggest closest name matches and confirm with user
