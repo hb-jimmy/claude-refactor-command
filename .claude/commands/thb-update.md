@@ -8,6 +8,7 @@ $ARGUMENTS
 **Supported flags:**
 - `commits` - Include commit messages in analysis
 - `--no-slack` - Skip Slack posting even if configured
+- `--purge-cache` - Remove stale entries (older than 2 weeks) from the Jira issue cache
 
 ## Workflow
 
@@ -63,34 +64,95 @@ Once the channel ID is resolved, save it to `~/.slack-config.yaml` for future us
 
 Store the `slack_channel_id` for step 10.
 
-### 2. Identify Jira Issue
+### 2. Handle Cache Purge (if requested)
 
-Extract the Jira issue key from the current git branch name:
+**If `--purge-cache` is in $ARGUMENTS OR user verbally requested to purge:**
+
+1. Load `~/.jira-issue-cache.json` if it exists
+2. Calculate the cutoff timestamp (current time minus 2 weeks)
+3. Remove all entries where `timestamp` is older than the cutoff
+4. Save the updated cache file
+5. Inform the user: "Purged {count} stale cache entries older than 2 weeks."
+
+### 3. Identify Jira Issue
+
+**Step 3a: Get current repo and branch:**
 ```bash
-git branch --show-current
+git rev-parse --show-toplevel  # Get repo root path
+git branch --show-current       # Get branch name
 ```
 
-Look for a pattern matching `[A-Z]+-[0-9]+` (e.g., HB-7162, PROJ-123) anywhere in the branch name.
+Combine these to create a cache key: `{repo_path}:{branch_name}`
 
-**If no issue key is found:**
+**Step 3b: Check the Jira issue cache:**
+
+Load `~/.jira-issue-cache.json` if it exists. This file has the structure:
+```json
+{
+  "entries": {
+    "/path/to/repo:branch-name": {
+      "issue_key": "HB-7162",
+      "issue_summary": "Test for jira integration",
+      "timestamp": "2026-02-04T10:30:00Z"
+    }
+  }
+}
+```
+
+**If a cache entry exists for the current repo+branch:**
+- Store the cached `issue_key`
+- Inform the user: "Using cached Jira issue {issue_key} for branch '{branch_name}'"
+
+**Step 3c: Check if user provided an issue in $ARGUMENTS:**
+
+Look for a pattern matching `[A-Z]+-[0-9]+` (e.g., HB-7162, PROJ-123) in $ARGUMENTS.
+
+**If user provided an issue AND it differs from cached issue:**
+- Warn the user: "The cached issue for this branch is {cached_issue}, but you specified {provided_issue}. Do you want to update the cache to use {provided_issue}?"
+- If yes: Use the provided issue and update cache (step 3f)
+- If no: Use the cached issue
+
+**If user provided an issue AND no cache exists (or matches):**
+- Use the provided issue
+
+**Step 3d: Check branch name for issue key:**
+
+If no issue determined yet, look for a pattern matching `[A-Z]+-[0-9]+` in the branch name.
+
+**Step 3e: Prompt user if no issue found:**
+
+If still no issue determined:
 - Ask the user: "I couldn't find a Jira issue key in the branch name '{branch_name}'. What Jira issue should this update be posted to?"
 - Wait for user input before proceeding.
 
-**Validate the issue exists:**
+**Step 3f: Validate and cache the issue:**
+
 ```bash
 jira-read {issue_key}
 ```
 
 If the issue doesn't exist, inform the user and abort.
 
-### 3. Verify Issue Status
+**Save to cache:**
+1. Load existing `~/.jira-issue-cache.json` (or create empty structure)
+2. Add/update entry for current cache key:
+   ```json
+   {
+     "issue_key": "{issue_key}",
+     "issue_summary": "{summary from jira-read}",
+     "timestamp": "{current ISO timestamp}"
+   }
+   ```
+3. Write back to `~/.jira-issue-cache.json`
+
+### 4. Verify Issue Status
 
 Check the issue status from the jira-read output.
 
 **If status is "To Do", "Backlog", or "Open":**
 - Prompt the user: "This issue is currently in '{status}' status. Would you like me to move it to 'In Progress' and assign it to you?"
 - If yes:
-  - Determine current user (see step 6)
+  - Determine current user (see step 7)
   - Run: `jira-update {issue_key} --status "In Progress"`
   - Run: `jira-update {issue_key} --assign`
 - If no, proceed without changing status.
@@ -99,7 +161,7 @@ Check the issue status from the jira-read output.
 - Warn: "This issue is marked as '{status}'. Are you sure you want to post an update?"
 - If no, abort.
 
-### 4. Check for Uncommitted Changes
+### 5. Check for Uncommitted Changes
 
 Before generating a summary, ensure all changes are committed:
 ```bash
@@ -114,9 +176,9 @@ git status --porcelain
   - If no: Abort the workflow with message "Please commit your changes and run /thb-update again."
 
 **If working tree is clean:**
-- Proceed to step 5
+- Proceed to step 6
 
-### 5. Find Last THB Update SHA
+### 6. Find Last THB Update SHA
 
 Get the SHA to use as the starting point for the summary:
 ```bash
@@ -127,9 +189,9 @@ This returns JSON with a SHA:
 - If a previous "THB Automated Summary" comment exists, returns that commit SHA
 - If no previous comment exists, returns the merge-base SHA with main/master
 
-Store this SHA for use in step 8.
+Store this SHA for use in step 9.
 
-### 6. Identify Current User
+### 7. Identify Current User
 
 Determine the current user for assignment and display:
 
@@ -141,16 +203,16 @@ Determine the current user for assignment and display:
 
 Store the user's `account_id` and `display_name` for later use.
 
-### 7. Identify Pairing Partners
+### 8. Identify Pairing Partners
 
 **Ask the user:**
 "Are you pairing with anyone on this work?"
 
-**If no:** Continue to step 8 (no pairing section will be included in the update).
+**If no:** Continue to step 9 (no pairing section will be included in the update).
 
 **If yes:**
 
-1. Check commit authors for potential pairing partners (commits since the SHA from step 5):
+1. Check commit authors for potential pairing partners (commits since the SHA from step 6):
    ```bash
    git log {sha}..HEAD --format='%ae' | sort -u
    ```
@@ -170,7 +232,7 @@ Store the user's `account_id` and `display_name` for later use.
 
 5. Store each partner's `account_id`, `display_name`, and `email` for the comment (email is needed for Slack user matching).
 
-### 8. Generate Change Summary
+### 9. Generate Change Summary
 
 **Get the current HEAD SHA (short form):**
 ```bash
@@ -181,13 +243,13 @@ Store this as `{current_sha}` for the comment header.
 
 **Get the code diff since the last update:**
 ```bash
-git diff {sha_from_step_5}..HEAD
+git diff {sha_from_step_6}..HEAD
 ```
 
 **If user included "commits" in $ARGUMENTS:**
 Also gather commit messages:
 ```bash
-git log {sha_from_step_5}..HEAD --format='%s%n%b' --no-merges
+git log {sha_from_step_6}..HEAD --format='%s%n%b' --no-merges
 ```
 
 **Generate a user-facing summary:**
@@ -203,7 +265,7 @@ Analyze the diff and create a summary that:
 1. A brief one-line header summarizing the changes
 2. A detailed multi-paragraph description
 
-### 9. Preview and Approve
+### 10. Preview and Approve
 
 Display the formatted comment to the user:
 
@@ -232,7 +294,7 @@ Pairing: @{partner1_display_name}, @{partner2_display_name}
 
 If the user wants to edit, make the requested changes and preview again.
 
-### 10. Post Update to Jira
+### 11. Post Update to Jira
 
 Build the ADF JSON content array:
 
@@ -265,29 +327,29 @@ jira-update {issue_key} --adf --message '{adf_json}'
 **On success:**
 - Inform the user: "Update posted to {issue_key}: {issue_summary}"
 - Provide a link to the issue if possible
-- Proceed to step 11 (Slack posting)
+- Proceed to step 12 (Slack posting)
 
 **On failure:**
 - Display the error message
 - Offer to retry or save the comment for manual posting
 - If user cancels retry, skip Slack posting
 
-### 11. Post Update to Slack (if enabled)
+### 12. Post Update to Slack (if enabled)
 
 **If `slack_enabled` is false:**
 - Skip this step entirely, workflow is complete
 
 **If `slack_enabled` is true:**
 
-#### 11a. Confirm Slack Posting
+#### 12a. Confirm Slack Posting
 
 Ask the user: "Would you also like to post this update to Slack?"
 
 **If no:** Skip Slack posting, workflow is complete.
 
-**If yes:** Proceed to step 11b.
+**If yes:** Proceed to step 12b.
 
-#### 11b. Resolve Slack User Mentions for Pairing Partners
+#### 12b. Resolve Slack User Mentions for Pairing Partners
 
 **If there are pairing partners:**
 
@@ -309,7 +371,7 @@ For each partner, find their corresponding Slack user by email:
 
 Store each resolved Slack user ID for formatting.
 
-#### 11c. Format Slack Message
+#### 12c. Format Slack Message
 
 Build the Slack message using mrkdwn format:
 
@@ -337,7 +399,7 @@ Pairing: <@{slack_user_id1}>, <@{slack_user_id2}>
 Note: Slack @mentions use the format `<@USER_ID>` (e.g., `<@U01234567>`).
 Note: Slack links use the format `<URL|display text>`. The Jira domain can be extracted from `~/.jira-config.yaml` (e.g., `thehelperbees` from `thehelperbees.atlassian.net`).
 
-#### 11d. Post to Slack
+#### 12d. Post to Slack
 
 ```bash
 slack-update {slack_channel_id} "{slack_message}"
@@ -378,6 +440,8 @@ slack-update {slack_channel_id} "{slack_message}"
 ### Jira
 - `~/.jira-config.yaml` - Contains `email` and `api_token`
   - Jira domain for URLs is derived from the email domain (e.g., `user@thehelperbees.com` → `thehelperbees.atlassian.net`)
+- `~/.jira-issue-cache.json` - Maps repo+branch to Jira issue (prevents updating wrong ticket)
+  - Entries older than 2 weeks can be purged with `--purge-cache`
 - `/tmp/jira-users-cache.json` - Cached Jira users
 
 ### Slack
@@ -407,3 +471,5 @@ slack-update {slack_channel_id} "{slack_message}"
 - Subsequent updates only summarize changes since the last THB Automated Summary
 - When matching Jira users to Slack users for mentions, match by email address
 - If email match fails, suggest closest name matches and confirm with user
+- Jira issue is cached per repo+branch to prevent accidentally updating the wrong ticket
+- Use `--purge-cache` to remove stale cache entries older than 2 weeks
