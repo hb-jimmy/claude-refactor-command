@@ -320,6 +320,8 @@ Build the Slack message using mrkdwn format:
 Pairing: <@{slack_user_id1}>, <@{slack_user_id2}>
 
 {detailed_description}
+
+<https://{jira_domain}.atlassian.net/browse/{issue_key}|{issue_key}: {issue_summary}>
 ```
 
 **Without pairing or no Slack IDs resolved:**
@@ -328,9 +330,12 @@ Pairing: <@{slack_user_id1}>, <@{slack_user_id2}>
 *{brief_header}*
 
 {detailed_description}
+
+<https://{jira_domain}.atlassian.net/browse/{issue_key}|{issue_key}: {issue_summary}>
 ```
 
 Note: Slack @mentions use the format `<@USER_ID>` (e.g., `<@U01234567>`).
+Note: Slack links use the format `<URL|display text>`. The Jira domain can be extracted from `~/.jira-config.yaml` (e.g., `thehelperbees` from `thehelperbees.atlassian.net`).
 
 #### 11d. Post to Slack
 
@@ -372,6 +377,7 @@ slack-update {slack_channel_id} "{slack_message}"
 
 ### Jira
 - `~/.jira-config.yaml` - Contains `email` and `api_token`
+  - Jira domain for URLs is derived from the email domain (e.g., `user@thehelperbees.com` → `thehelperbees.atlassian.net`)
 - `/tmp/jira-users-cache.json` - Cached Jira users
 
 ### Slack
