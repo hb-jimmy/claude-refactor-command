@@ -9,6 +9,8 @@ $ARGUMENTS
 - `commits` - Include commit messages in analysis
 - `--no-slack` - Skip Slack posting even if configured
 - `--purge-cache` - Remove stale entries (older than 2 weeks) from the Jira issue cache
+- `--solo` - Skip pairing question, indicate working alone (no pairing section in update)
+- `--pair "<name>"` - Specify pairing partner(s) upfront (can use name or email, comma-separated for multiple)
 
 ## Workflow
 
@@ -205,12 +207,23 @@ Store the user's `account_id` and `display_name` for later use.
 
 ### 8. Identify Pairing Partners
 
-**Ask the user:**
+**Check for flags first:**
+
+**If `--solo` is in $ARGUMENTS:**
+- Skip pairing entirely, continue to step 9 (no pairing section will be included in the update)
+
+**If `--pair "<name>"` is in $ARGUMENTS:**
+- Extract the partner name(s) from the flag value
+- Skip to step 8b to resolve the specified partner(s)
+
+**Otherwise, ask the user:**
 "Are you pairing with anyone on this work?"
 
 **If no:** Continue to step 9 (no pairing section will be included in the update).
 
 **If yes:**
+
+#### 8a. Suggest potential partners from commits
 
 1. Check commit authors for potential pairing partners (commits since the SHA from step 6):
    ```bash
@@ -221,16 +234,18 @@ Store the user's `account_id` and `display_name` for later use.
 
 3. Ask the user to enter pairing partner name(s), email(s), or username(s). They can enter multiple separated by commas.
 
-4. For each partner entered:
-   - Load the user cache from `/tmp/jira-users-cache.json`
-   - Search for matches by display_name, email, or partial match
-   - If multiple matches found, list them and ask the user to select
-   - If no match found:
-     - Run `jira-users` to refresh the cache
-     - Search again
-     - If still not found, abort with error: "Could not find Jira user matching '{input}'. Please verify the name/email."
+#### 8b. Resolve partner identities
 
-5. Store each partner's `account_id`, `display_name`, and `email` for the comment (email is needed for Slack user matching).
+For each partner entered (or specified via `--pair`):
+- Load the user cache from `/tmp/jira-users-cache.json`
+- Search for matches by display_name, email, or partial match
+- If multiple matches found, list them and ask the user to select
+- If no match found:
+  - Run `jira-users` to refresh the cache
+  - Search again
+  - If still not found, abort with error: "Could not find Jira user matching '{input}'. Please verify the name/email."
+
+Store each partner's `account_id`, `display_name`, and `email` for the comment (email is needed for Slack user matching).
 
 ### 9. Generate Change Summary
 
