@@ -106,8 +106,8 @@ class FathomClient:
             List of Meeting objects across all pages.
         """
         params: Dict[str, Any] = {}
-        if attendee_email:
-            params["calendar_invitees[]"] = attendee_email
+        # Note: calendar_invitees[] server-side filter is unreliable,
+        # so we skip it and filter client-side in the CLI layer.
         if created_after:
             params["created_after"] = created_after
         if created_before:
@@ -158,7 +158,11 @@ class FathomClient:
         """
         data = self._request("GET", f"/recordings/{recording_id}/transcript")
 
-        if not data or not isinstance(data, list):
+        if not data:
             return []
 
-        return data
+        # API wraps transcript in {"transcript": [...]}
+        if isinstance(data, dict):
+            return data.get("transcript", [])
+
+        return data if isinstance(data, list) else []

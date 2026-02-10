@@ -9,6 +9,7 @@ Commands:
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timedelta
 
 from .client import FathomClient, FathomApiError
@@ -45,10 +46,18 @@ def _fetch_transcripts(
         created_before=created_before,
     )
 
+    # Client-side filter: only keep meetings where the configured email is an attendee
+    email_lower = meeting.email.lower()
+    meetings = [m for m in meetings if email_lower in [a.lower() for a in m.attendees]]
+
     saved = 0
-    for mtg in meetings:
+    for i, mtg in enumerate(meetings):
         if not mtg.recording_id:
             continue
+
+        # Pace requests to stay under 60/min rate limit
+        if i > 0:
+            time.sleep(1.5)
 
         date_str = _date_from_created_at(mtg.created_at)
         filename = f"{date_str}.json"
@@ -67,8 +76,17 @@ def _fetch_transcripts(
         try:
             transcript = client.get_transcript(mtg.recording_id)
         except FathomApiError as e:
-            print(f"  Warning: Failed to get transcript for {mtg.title} ({date_str}): {e}", file=sys.stderr)
-            continue
+            if e.status_code == 429:
+                print(f"  Rate limited, waiting 60s...", file=sys.stderr)
+                time.sleep(60)
+                try:
+                    transcript = client.get_transcript(mtg.recording_id)
+                except FathomApiError as e2:
+                    print(f"  Warning: Failed to get transcript for {mtg.title} ({date_str}): {e2}", file=sys.stderr)
+                    continue
+            else:
+                print(f"  Warning: Failed to get transcript for {mtg.title} ({date_str}): {e}", file=sys.stderr)
+                continue
 
         if not transcript:
             continue
