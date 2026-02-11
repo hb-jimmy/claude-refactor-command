@@ -41,14 +41,13 @@ def _fetch_transcripts(
     created_before = f"{to_date}T23:59:59Z"
 
     meetings = client.list_meetings(
-        attendee_email=meeting.email,
         created_after=created_after,
         created_before=created_before,
     )
 
-    # Client-side filter: only keep meetings where the configured email is an attendee
-    email_lower = meeting.email.lower()
-    meetings = [m for m in meetings if email_lower in [a.lower() for a in m.attendees]]
+    # Client-side filter: only keep meetings matching the configured title
+    title_lower = meeting.title.lower()
+    meetings = [m for m in meetings if m.title.lower() == title_lower]
 
     saved = 0
     for i, mtg in enumerate(meetings):
@@ -122,7 +121,7 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 
     total_saved = 0
     for meeting in meetings:
-        print(f"Fetching transcripts for: {meeting.label} ({meeting.email})")
+        print(f"Fetching transcripts for: {meeting.label} (title: {meeting.title})")
         try:
             saved = _fetch_transcripts(client, meeting, from_date, to_date)
             if saved == 0:
@@ -142,7 +141,7 @@ def cmd_list(args: argparse.Namespace) -> None:
         print("No meetings configured. Add meetings to ~/.fathom-tool/config.yaml")
         return
 
-    print(f"{'Label':<30} {'Email':<30} {'Transcripts'}")
+    print(f"{'Label':<30} {'Title':<30} {'Transcripts'}")
     print("-" * 75)
 
     for meeting in config.meetings:
@@ -151,7 +150,7 @@ def cmd_list(args: argparse.Namespace) -> None:
             count = len(list(out_dir.glob("*.json")))
         else:
             count = 0
-        print(f"{meeting.label:<30} {meeting.email:<30} {count}")
+        print(f"{meeting.label:<30} {meeting.title:<30} {count}")
 
 
 def main() -> None:

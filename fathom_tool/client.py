@@ -90,15 +90,13 @@ class FathomClient:
 
     def list_meetings(
         self,
-        attendee_email: Optional[str] = None,
         created_after: Optional[str] = None,
         created_before: Optional[str] = None,
     ) -> List[Meeting]:
         """
-        List meetings, optionally filtered by attendee email and date range.
+        List meetings, optionally filtered by date range.
 
         Args:
-            attendee_email: Filter to meetings with this calendar invitee.
             created_after: ISO 8601 timestamp (e.g., "2026-01-01T00:00:00Z").
             created_before: ISO 8601 timestamp.
 
@@ -106,8 +104,6 @@ class FathomClient:
             List of Meeting objects across all pages.
         """
         params: Dict[str, Any] = {}
-        # Note: calendar_invitees[] server-side filter is unreliable,
-        # so we skip it and filter client-side in the CLI layer.
         if created_after:
             params["created_after"] = created_after
         if created_before:

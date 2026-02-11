@@ -20,8 +20,8 @@ TRANSCRIPTS_DIR = CONFIG_DIR / "transcripts"
 
 @dataclass
 class MeetingConfig:
-    """A configured 1:1 meeting to track, identified by attendee email."""
-    email: str
+    """A configured meeting to track, identified by Zoom meeting title."""
+    title: str
     label: str
 
 
@@ -57,9 +57,9 @@ def load_config() -> FathomConfig:
         api_key: "your-fathom-api-key"
 
         meetings:
-          - email: "alice@company.com"
+          - title: "Alice / You 1:1"
             label: "Alice - 1:1"
-          - email: "bob@company.com"
+          - title: "Bob / You 1:1"
             label: "Bob - 1:1"
 
     Returns:
@@ -77,9 +77,9 @@ def load_config() -> FathomConfig:
             '  api_key: "your-fathom-api-key"\n'
             "\n"
             "  meetings:\n"
-            '    - email: "alice@company.com"\n'
+            '    - title: "Alice / You 1:1"\n'
             '      label: "Alice - 1:1"\n'
-            '    - email: "bob@company.com"\n'
+            '    - title: "Bob / You 1:1"\n'
             '      label: "Bob - 1:1"\n'
             "\n"
             "To create an API key, go to Fathom User Settings > API Access.\n"
@@ -105,9 +105,9 @@ def load_config() -> FathomConfig:
     for m in data.get("meetings", []):
         if not isinstance(m, dict):
             continue
-        email = m.get("email")
+        title = m.get("title")
         label = m.get("label")
-        if email and label:
-            meetings.append(MeetingConfig(email=str(email), label=str(label)))
+        if title and label:
+            meetings.append(MeetingConfig(title=str(title), label=str(label)))
 
     return FathomConfig(api_key=str(api_key), meetings=meetings)
