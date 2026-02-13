@@ -2,12 +2,13 @@
 CLI entry points for fathom-tool.
 
 Commands:
-    fathom-transcripts fetch [--meeting LABEL] [--from-date DATE] [--to-date DATE]
+    fathom-transcripts fetch [--meeting PERSON] [--from-date DATE] [--to-date DATE]
     fathom-transcripts list
 """
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -27,7 +28,11 @@ def _date_from_created_at(created_at: str) -> str:
 
 
 def _fetch_transcripts(
-    client: FathomClient, meeting: MeetingConfig, from_date: str, to_date: str
+    client: FathomClient,
+    meeting: MeetingConfig,
+    from_date: str,
+    to_date: str,
+    force: bool = False,
 ) -> int:
     """
     Fetch and save new transcripts for a single meeting config.
@@ -46,12 +51,30 @@ def _fetch_transcripts(
     )
 
     # Client-side filter: only keep meetings matching the configured title
-    title_lower = meeting.title.lower()
-    meetings = [m for m in meetings if m.title.lower() == title_lower]
+    # Normalize whitespace around '/' so "A / B" matches "A/B", "A/ B", etc.
+    def _normalize_title(t: str) -> str:
+        return re.sub(r'\s*/\s*', '/', t.lower().strip())
+
+    norm_title = _normalize_title(meeting.title)
+    meetings = [m for m in meetings if _normalize_title(m.title) == norm_title]
+
+    # Load manifest of previously downloaded recording IDs
+    manifest_path = out_dir / ".downloaded_recordings.json"
+    if manifest_path.exists():
+        downloaded: dict = json.loads(manifest_path.read_text(encoding="utf-8"))
+    else:
+        downloaded: dict = {}
 
     saved = 0
     for i, mtg in enumerate(meetings):
         if not mtg.recording_id:
+            continue
+
+        rec_id_str = str(mtg.recording_id)
+
+        # Skip if this exact recording was already downloaded
+        if rec_id_str in downloaded and not force:
+            print(f"  Skipped: recording {mtg.recording_id} already downloaded as {downloaded[rec_id_str]}")
             continue
 
         # Pace requests to stay under 60/min rate limit
@@ -62,7 +85,7 @@ def _fetch_transcripts(
         filename = f"{date_str}.json"
         filepath = out_dir / filename
 
-        # If multiple meetings on the same date, add a suffix
+        # If a file for this date already exists, find next available suffix
         if filepath.exists():
             counter = 2
             while True:
@@ -91,6 +114,8 @@ def _fetch_transcripts(
             continue
 
         filepath.write_text(json.dumps(transcript, indent=2), encoding="utf-8")
+        downloaded[rec_id_str] = filename
+        manifest_path.write_text(json.dumps(downloaded, indent=2), encoding="utf-8")
         print(f"  Saved: {filepath}")
         saved += 1
 
@@ -107,23 +132,23 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 
     meetings = config.meetings
     if args.meeting:
-        label_lower = args.meeting.lower()
-        meetings = [m for m in meetings if m.label.lower() == label_lower]
+        person_lower = args.meeting.lower()
+        meetings = [m for m in meetings if m.person.lower() == person_lower]
         if not meetings:
-            available = ", ".join(f'"{m.label}"' for m in config.meetings)
-            print(f'Error: No meeting found with label "{args.meeting}"', file=sys.stderr)
-            print(f"Available meetings: {available}", file=sys.stderr)
+            available = ", ".join(f'"{m.person}"' for m in config.meetings)
+            print(f'Error: No meeting found for person "{args.meeting}"', file=sys.stderr)
+            print(f"Available: {available}", file=sys.stderr)
             sys.exit(1)
 
     if not meetings:
-        print("No meetings configured. Add meetings to ~/.fathom-tool/config.yaml", file=sys.stderr)
+        print("No meetings configured. Add meetings to ~/.one-on-one/config.yaml", file=sys.stderr)
         sys.exit(1)
 
     total_saved = 0
     for meeting in meetings:
-        print(f"Fetching transcripts for: {meeting.label} (title: {meeting.title})")
+        print(f"Fetching transcripts for: {meeting.person} (title: {meeting.title})")
         try:
-            saved = _fetch_transcripts(client, meeting, from_date, to_date)
+            saved = _fetch_transcripts(client, meeting, from_date, to_date, force=args.force)
             if saved == 0:
                 print("  No new transcripts found.")
             total_saved += saved
@@ -138,11 +163,11 @@ def cmd_list(args: argparse.Namespace) -> None:
     config = load_config()
 
     if not config.meetings:
-        print("No meetings configured. Add meetings to ~/.fathom-tool/config.yaml")
+        print("No meetings configured. Add meetings to ~/.one-on-one/config.yaml")
         return
 
-    print(f"{'Label':<30} {'Title':<30} {'Transcripts'}")
-    print("-" * 75)
+    print(f"{'Person':<20} {'Title':<30} {'Transcripts'}")
+    print("-" * 65)
 
     for meeting in config.meetings:
         out_dir = transcript_dir_for_meeting(meeting)
@@ -150,7 +175,7 @@ def cmd_list(args: argparse.Namespace) -> None:
             count = len(list(out_dir.glob("*.json")))
         else:
             count = 0
-        print(f"{meeting.label:<30} {meeting.title:<30} {count}")
+        print(f"{meeting.person:<20} {meeting.title:<30} {count}")
 
 
 def main() -> None:
@@ -164,7 +189,7 @@ def main() -> None:
     fetch_parser = subparsers.add_parser("fetch", help="Fetch new transcripts")
     fetch_parser.add_argument(
         "--meeting", "-m",
-        help="Fetch only for a specific meeting label",
+        help="Fetch only for a specific person name",
     )
     fetch_parser.add_argument(
         "--from-date", "-f",
@@ -173,6 +198,12 @@ def main() -> None:
     fetch_parser.add_argument(
         "--to-date", "-t",
         help="End date (YYYY-MM-DD). Default: today.",
+    )
+    fetch_parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Re-download transcripts even if a file for that date already exists.",
     )
     fetch_parser.set_defaults(func=cmd_fetch)
 

@@ -1,19 +1,19 @@
 """
 Configuration and credential discovery for fathom-tool.
 
-Credentials and meeting configuration are stored in ~/.fathom-tool/config.yaml.
-Transcripts are stored in ~/.fathom-tool/transcripts/<label>/.
+Credentials and meeting configuration are stored in ~/.one-on-one/config.yaml.
+Transcripts are stored in ~/.one-on-one/transcripts/<person>/.
 """
 
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import yaml
 
 
-CONFIG_DIR = Path.home() / ".fathom-tool"
+CONFIG_DIR = Path.home() / ".one-on-one"
 CONFIG_FILE_PATH = CONFIG_DIR / "config.yaml"
 TRANSCRIPTS_DIR = CONFIG_DIR / "transcripts"
 
@@ -22,12 +22,13 @@ TRANSCRIPTS_DIR = CONFIG_DIR / "transcripts"
 class MeetingConfig:
     """A configured meeting to track, identified by Zoom meeting title."""
     title: str
-    label: str
+    person: str
+    repo: Optional[str] = None
 
 
 @dataclass
 class FathomConfig:
-    """Full fathom-tool configuration."""
+    """Full configuration."""
     api_key: str
     meetings: List[MeetingConfig] = field(default_factory=list)
 
@@ -37,30 +38,32 @@ class ConfigError(Exception):
     pass
 
 
-def sanitize_label(label: str) -> str:
-    """Convert a meeting label to a filesystem-safe directory name."""
-    safe = re.sub(r'[^\w\s-]', '', label).strip()
+def sanitize_person(person: str) -> str:
+    """Convert a person name to a filesystem-safe directory name."""
+    safe = re.sub(r'[^\w\s-]', '', person).strip()
     safe = re.sub(r'[\s]+', '_', safe)
     return safe.lower()
 
 
 def transcript_dir_for_meeting(meeting: MeetingConfig) -> Path:
     """Get the transcript storage directory for a meeting."""
-    return TRANSCRIPTS_DIR / sanitize_label(meeting.label)
+    return TRANSCRIPTS_DIR / sanitize_person(meeting.person)
 
 
 def load_config() -> FathomConfig:
     """
-    Load fathom-tool configuration from ~/.fathom-tool/config.yaml.
+    Load configuration from ~/.one-on-one/config.yaml.
 
     Expected format:
-        api_key: "your-fathom-api-key"
+        fathom_api_key: "your-fathom-api-key"
 
         meetings:
           - title: "Alice / You 1:1"
-            label: "Alice - 1:1"
+            person: "Alice"
+            repo: ~/one-on-ones/alice-shared
           - title: "Bob / You 1:1"
-            label: "Bob - 1:1"
+            person: "Bob"
+            repo: ~/one-on-ones/bob-shared
 
     Returns:
         FathomConfig with API key and meeting list.
@@ -74,15 +77,17 @@ def load_config() -> FathomConfig:
             "\n"
             "Create it with the following format:\n"
             "\n"
-            '  api_key: "your-fathom-api-key"\n'
+            '  fathom_api_key: "your-fathom-api-key"\n'
             "\n"
             "  meetings:\n"
             '    - title: "Alice / You 1:1"\n'
-            '      label: "Alice - 1:1"\n'
+            '      person: "Alice"\n'
+            '      repo: ~/one-on-ones/alice-shared\n'
             '    - title: "Bob / You 1:1"\n'
-            '      label: "Bob - 1:1"\n'
+            '      person: "Bob"\n'
+            '      repo: ~/one-on-ones/bob-shared\n'
             "\n"
-            "To create an API key, go to Fathom User Settings > API Access.\n"
+            "To create a Fathom API key, go to Fathom User Settings > API Access.\n"
         )
 
     try:
@@ -94,11 +99,11 @@ def load_config() -> FathomConfig:
     if not isinstance(data, dict):
         raise ConfigError(f"Invalid config file format: {CONFIG_FILE_PATH}")
 
-    api_key = data.get("api_key")
+    api_key = data.get("fathom_api_key")
     if not api_key:
         raise ConfigError(
-            "Missing api_key in config file. Required field:\n"
-            "  api_key"
+            "Missing fathom_api_key in config file. Required field:\n"
+            "  fathom_api_key"
         )
 
     meetings = []
@@ -106,8 +111,13 @@ def load_config() -> FathomConfig:
         if not isinstance(m, dict):
             continue
         title = m.get("title")
-        label = m.get("label")
-        if title and label:
-            meetings.append(MeetingConfig(title=str(title), label=str(label)))
+        person = m.get("person")
+        repo = m.get("repo")
+        if title and person:
+            meetings.append(MeetingConfig(
+                title=str(title),
+                person=str(person),
+                repo=str(repo) if repo else None,
+            ))
 
     return FathomConfig(api_key=str(api_key), meetings=meetings)
