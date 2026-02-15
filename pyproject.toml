@@ -25,7 +25,7 @@ jira-latest-comment = "jira_update.latest_comment:main"
 slack-update = "slack_update.cli:main"
 slack-users = "slack_update.users:main"
 slack-channels = "slack_update.channels:main"
-slack-scan-reminders = "slack_reminder.cli:main"
+slack-remind = "slack_reminder.cli:main"
 
 [project.optional-dependencies]
 dev = [

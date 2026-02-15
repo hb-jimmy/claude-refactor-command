@@ -1,4 +1,4 @@
-"""Configuration for slack-scan-reminders.
+"""Configuration for slack-remind.
 
 State is stored in ~/.slack-reminder.yaml. Slack credentials are read
 from ~/.slack-config.yaml (same file used by slack-update).
@@ -6,7 +6,7 @@ from ~/.slack-config.yaml (same file used by slack-update).
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import yaml
 
@@ -29,8 +29,7 @@ class ProcessedEntry:
 
 @dataclass
 class ReminderConfig:
-    """Reminder scanner configuration and state."""
-    channel_id: Optional[str] = None
+    """Reminder configuration and state."""
     processed_files: List[ProcessedEntry] = field(default_factory=list)
 
 
@@ -57,18 +56,12 @@ def load_reminder_config() -> ReminderConfig:
         if isinstance(entry, dict) and "file" in entry and "date" in entry:
             processed.append(ProcessedEntry(file=entry["file"], date=entry["date"]))
 
-    return ReminderConfig(
-        channel_id=data.get("channel_id"),
-        processed_files=processed,
-    )
+    return ReminderConfig(processed_files=processed)
 
 
 def save_reminder_config(config: ReminderConfig) -> None:
     """Write reminder config to ~/.slack-reminder.yaml."""
     data = {}
-    if config.channel_id:
-        data["channel_id"] = config.channel_id
-
     if config.processed_files:
         data["processed_files"] = [
             {"file": e.file, "date": e.date} for e in config.processed_files
