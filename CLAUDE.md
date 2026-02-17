@@ -19,6 +19,14 @@ claude-utils/
 │   ├── users.py          # slack-users command
 │   ├── client.py         # Slack API client
 │   └── config.py         # Credential loading
+├── slack_reminder/       # Slack reminder tool
+│   ├── cli.py            # slack-remind command
+│   ├── scanner.py        # Reminder API client
+│   └── config.py         # Credential loading
+├── slack_scan/           # Slack channel scanner
+│   ├── cli.py            # slack-history command
+│   ├── client.py         # History/thread API client
+│   └── config.py         # Channel list + credential loading
 ├── .claude/
 │   └── commands/         # Claude Code slash commands
 │       ├── thb-flow.md   # /thb-flow command
@@ -144,6 +152,37 @@ Fetch all accessible Slack channels and save to `~/.slack-channels.json`.
 slack-channels
 slack-channels --cursor "abc123"  # Resume from pagination cursor
 ```
+
+### slack-remind
+
+Create a Slack reminder directly via the API.
+
+```bash
+slack-remind "Order books for the team" --time 2026-02-16T08:00:00-05:00
+slack-remind "Talk to Angela" --time 2026-02-17T09:00:00-05:00 --json
+```
+
+### slack-history
+
+Fetch Slack channel history as JSON for analysis.
+
+```bash
+slack-history C01234567 --days 2              # Single channel, 2 days back
+slack-history C01234567 --oldest 2026-02-14   # Single channel, from specific date
+slack-history --all --days 1                  # All channels from ~/.slack-scan.yaml
+slack-history --all --days 3 --no-threads     # Skip thread replies
+```
+
+**Config:** `~/.slack-scan.yaml` with channel list for `--all` mode:
+```yaml
+channels:
+  - id: "C01234567"
+    name: "engineering"
+  - id: "C09876543"
+    name: "general"
+```
+
+**Required Slack scopes:** `channels:history`, `groups:history`, `users:read`
 
 ## Claude Code Commands
 

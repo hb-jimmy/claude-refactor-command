@@ -26,6 +26,8 @@ jira-latest-comment = "jira_update.latest_comment:main"
 slack-update = "slack_update.cli:main"
 slack-users = "slack_update.users:main"
 slack-channels = "slack_update.channels:main"
+slack-remind = "slack_reminder.cli:main"
+slack-history = "slack_scan.cli:main"
 fathom-transcripts = "fathom_tool.cli:main"
 summary-publish = "summary_publish.cli:main"
 
@@ -36,4 +38,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["jira_update*", "slack_update*", "fathom_tool*", "summary_publish*"]
+include = ["jira_update*", "slack_update*", "slack_reminder*", "slack_scan*", "fathom_tool*", "summary_publish*"]
