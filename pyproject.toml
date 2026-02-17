@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jira-update"
+name = "claude-utils"
 version = "0.1.0"
-description = "CLI tools for Jira and Slack: update tickets, post messages, and list users"
+description = "CLI tools for Jira, Slack, Fathom, and more"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -15,6 +15,7 @@ authors = [
 dependencies = [
     "requests>=2.28.0",
     "pyyaml>=6.0",
+    "markdownify>=0.11.0",
 ]
 
 [project.scripts]
@@ -25,6 +26,8 @@ jira-latest-comment = "jira_update.latest_comment:main"
 slack-update = "slack_update.cli:main"
 slack-users = "slack_update.users:main"
 slack-channels = "slack_update.channels:main"
+fathom-transcripts = "fathom_tool.cli:main"
+summary-publish = "summary_publish.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -33,4 +36,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["jira_update*", "slack_update*"]
+include = ["jira_update*", "slack_update*", "fathom_tool*", "summary_publish*"]
