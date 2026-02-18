@@ -56,7 +56,17 @@ def _fetch_transcripts(
         return re.sub(r'\s*/\s*', '/', t.lower().strip())
 
     norm_title = _normalize_title(meeting.title)
-    meetings = [m for m in meetings if _normalize_title(m.title) == norm_title]
+    matched = [m for m in meetings if _normalize_title(m.title) == norm_title]
+
+    # Fallback: if exact title match finds nothing, try matching by just
+    # the person's first name (e.g., title "Elias" matches person "Elias")
+    if not matched:
+        person_lower = meeting.person.lower().strip()
+        matched = [m for m in meetings if m.title.lower().strip() == person_lower]
+        if matched:
+            print(f"  (matched {len(matched)} meeting(s) by person name fallback)")
+
+    meetings = matched
 
     # Load manifest of previously downloaded recording IDs
     manifest_path = out_dir / ".downloaded_recordings.json"
