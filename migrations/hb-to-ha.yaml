@@ -1,0 +1,37 @@
+# Migration config: HB project -> HA project
+# Used February 2026 to port all epics and child issues from HB to HA
+
+epic_map:
+  HB-7405: HA-1    # Auto auth creation and enhancements
+  HB-4240: HA-2    # SCAN - 2026 Launch
+  HB-4563: HA-3    # Aetna - 2026 Renewal
+  HB-6575: HA-4    # Flexcard 2026 Launch
+  HB-6582: HA-5    # Tech Debt - homeAlign - post MA launch
+  HB-7346: HA-6    # Enable external SSO login
+  HB-7611: HA-7    # Multi-address functionality
+
+status_map:
+  To Do: To Do
+  In Progress: In Progress
+  QA: In Progress
+  Code Review: In Progress
+  Blocked: Blocked
+  Done: Done
+  Accepted: Done
+  "SMH not doing this": Done
+
+transitions:
+  To Do: "11"
+  In Progress: "21"
+  Blocked: "2"
+  Done: "31"
+
+# Statuses that require transitioning through In Progress first
+needs_intermediate:
+  - Blocked
+
+link_types_to_copy:
+  - "Polaris work item link"
+  - "Parent-Child"
+  - "Blocks"
+  - "Relates"

@@ -41,6 +41,15 @@ class JiraComment:
 
 
 @dataclass
+class JiraLinkType:
+    """Represents a Jira issue link type."""
+    id: str
+    name: str
+    inward: str
+    outward: str
+
+
+@dataclass
 class JiraUser:
     """Represents a Jira user."""
     display_name: str
@@ -479,6 +488,53 @@ class JiraClient:
         json_data = {"accountId": account_id}
 
         self._request("PUT", endpoint, json_data=json_data)
+
+    def get_link_types(self) -> List[JiraLinkType]:
+        """
+        Fetch all available issue link types.
+
+        Returns:
+            List of JiraLinkType objects.
+
+        Raises:
+            JiraApiError: If link types cannot be fetched.
+        """
+        endpoint = "/rest/api/3/issueLinkType"
+        data = self._request("GET", endpoint)
+
+        if not data:
+            return []
+
+        return [
+            JiraLinkType(
+                id=lt.get("id", ""),
+                name=lt.get("name", ""),
+                inward=lt.get("inward", ""),
+                outward=lt.get("outward", ""),
+            )
+            for lt in data.get("issueLinkTypes", [])
+        ]
+
+    def create_issue_link(self, link_type_name: str, outward_key: str, inward_key: str) -> None:
+        """
+        Create a link between two issues.
+
+        Args:
+            link_type_name: The link type name (e.g., "Duplicates", "Blocks").
+            outward_key: The outward issue key (e.g., "HA-1").
+            inward_key: The inward issue key (e.g., "HB-4240").
+
+        Raises:
+            JiraApiError: If the link cannot be created.
+        """
+        endpoint = "/rest/api/3/issueLink"
+        json_data = {
+            "type": {"name": link_type_name},
+            "outwardIssue": {"key": outward_key},
+            "inwardIssue": {"key": inward_key},
+        }
+
+        self._request("POST", endpoint, json_data=json_data)
 
     def add_rich_comment(self, issue_key: str, adf_content: List[Dict[str, Any]]) -> JiraComment:
         """
