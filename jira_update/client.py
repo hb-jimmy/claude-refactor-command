@@ -515,23 +515,39 @@ class JiraClient:
             for lt in data.get("issueLinkTypes", [])
         ]
 
+    def delete_issue_link(self, link_id: str) -> None:
+        """
+        Delete an issue link by its ID.
+
+        Args:
+            link_id: The link ID (from the issuelinks array on an issue).
+
+        Raises:
+            JiraApiError: If the link cannot be deleted.
+        """
+        endpoint = f"/rest/api/3/issueLink/{link_id}"
+        self._request("DELETE", endpoint)
+
     def create_issue_link(self, link_type_name: str, outward_key: str, inward_key: str) -> None:
         """
         Create a link between two issues.
 
         Args:
             link_type_name: The link type name (e.g., "Duplicates", "Blocks").
-            outward_key: The outward issue key (e.g., "HA-1").
-            inward_key: The inward issue key (e.g., "HB-4240").
+            outward_key: Issue that displays the outward label (e.g., "clones").
+            inward_key: Issue that displays the inward label (e.g., "is cloned by").
 
         Raises:
             JiraApiError: If the link cannot be created.
         """
         endpoint = "/rest/api/3/issueLink"
+        # The Jira POST API field names are inverted from their GET semantics:
+        # an issue sent as outwardIssue in POST will display the inward label,
+        # and vice versa. We swap here so callers can use intuitive semantics.
         json_data = {
             "type": {"name": link_type_name},
-            "outwardIssue": {"key": outward_key},
-            "inwardIssue": {"key": inward_key},
+            "outwardIssue": {"key": inward_key},
+            "inwardIssue": {"key": outward_key},
         }
 
         self._request("POST", endpoint, json_data=json_data)
