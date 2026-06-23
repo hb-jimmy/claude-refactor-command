@@ -14,6 +14,7 @@ TOOLS=(
     slack-update
     slack-users
     slack-channels
+    run-query
 )
 
 info()  { printf "\033[1;34m==>\033[0m %s\n" "$1"; }

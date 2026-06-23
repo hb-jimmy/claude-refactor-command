@@ -35,6 +35,7 @@ slack-history = "slack_scan.cli:main"
 slack-postmortem = "slack_postmortem.cli:main"
 fathom-transcripts = "fathom_tool.cli:main"
 summary-publish = "summary_publish.cli:main"
+run-query = "sql_query.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -43,4 +44,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["jira_update*", "slack_update*", "slack_postmortem*", "slack_reminder*", "slack_scan*", "fathom_tool*", "summary_publish*"]
+include = ["jira_update*", "slack_update*", "slack_postmortem*", "slack_reminder*", "slack_scan*", "fathom_tool*", "summary_publish*", "sql_query*"]
+
+[tool.setuptools.package-data]
+sql_query = ["RunQuery.java"]

@@ -27,6 +27,10 @@ claude-utils/
 │   ├── cli.py            # slack-history command
 │   ├── client.py         # History/thread API client
 │   └── config.py         # Channel list + credential loading
+├── sql_query/            # Azure SQL read-only query tool
+│   ├── cli.py            # run-query command
+│   ├── client.py         # Connection + read-only query execution
+│   └── config.py         # Server config loading
 ├── .claude/
 │   └── commands/         # Claude Code slash commands
 │       ├── thb-flow.md   # /thb-flow command
@@ -183,6 +187,100 @@ channels:
 ```
 
 **Required Slack scopes:** `channels:history`, `groups:history`, `users:read`
+
+## Azure SQL Query Tool
+
+### run-query
+
+Run a **read-only** query against an Azure SQL database and write the results
+to a CSV file. Authentication uses Azure Active Directory and is **cached on
+disk** — you sign in once with `--login`, and every query after that
+authenticates silently with no browser window.
+
+Internally a small Java helper (`sql_query/RunQuery.java`) uses **MSAL4J** with
+the Microsoft SQL JDBC driver's own public-client ID to acquire a token, caches
+it (and its refresh token) at `~/.azuresql/token-cache.json` (chmod 600), and
+passes it to the Microsoft **JDBC** driver via the `accessToken` property. The
+Java helper writes the CSV directly, so query results never pass through the
+Python process.
+
+```bash
+run-query --login                                          # sign in once (opens browser)
+run-query --db haCentene --output results.csv --query "SELECT TOP 10 * FROM dbo.Members"
+run-query --db haCentene -o out.csv -q "SELECT id, name FROM dbo.Providers WHERE active = 1"
+run-query --login --db haCentene -o out.csv -q "SELECT ..."  # re-auth, then run
+```
+
+**Authentication / caching:**
+- **No browser by default.** Queries use the cached credential and silently
+  refresh it as needed. If there is no usable cached credential, the command
+  fails telling you to run `run-query --login` — it never opens a browser on
+  its own.
+- **`--login`** forces an interactive browser sign-in and refreshes the cache.
+  With no query it just authenticates and exits.
+
+**Flags:**
+- `--db` — Database name to connect to (server host comes from config)
+- `--output` / `-o` — Path to the CSV file to write
+- `--query` / `-q` — The SQL query (quote it on the command line)
+- `--login` — Interactive sign-in (see above)
+
+(`--db`, `--output`, `--query` are all required for a query; `--login` alone
+needs none of them.)
+
+**Read-only enforcement:**
+- The query must be a single statement beginning with `SELECT` or `WITH`
+- Write/DDL keywords (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `DROP`, `CREATE`,
+  `ALTER`, `TRUNCATE`, `EXEC`, `INTO`, etc.) are rejected before any connection
+- The JDBC URL sets `applicationIntent=ReadOnly` and the connection calls
+  `setReadOnly(true)`
+
+**Config** (`~/.azuresql.yaml`):
+```yaml
+server: ha-prod1-azsqldb.database.windows.net
+username: you@thehelperbees.com     # your Azure AD sign-in address
+tenant_id: 05d7e6f8-37fe-4065-a708-05c487635aba   # see gotcha below
+# Optional:
+port: 1433
+jdbc_jars_dir: ~/jdbc-drivers       # dir with mssql-jdbc + MSAL4J jars;
+                                    # auto-discovers DataGrip's drivers if omitted
+```
+
+> **Tenant gotcha (important).** `tenant_id` must be the tenant of the SQL
+> **server's** STS, which is NOT necessarily thehelperbees.com's home tenant.
+> For `ha-prod1-azsqldb` the home tenant is `00ff0ed4-...` but the server only
+> accepts tokens issued by `05d7e6f8-37fe-4065-a708-05c487635aba` (you're a
+> guest there). Using the wrong tenant yields "Login failed for user
+> '<token-identified principal>'. The server is not currently configured to
+> accept this token." To discover the right tenant for a new server, connect
+> once with the driver's native `authentication=ActiveDirectoryInteractive` and
+> read the `STSURL` from FINEST JDBC logs (the tenant GUID in
+> `https://login.windows.net/<tenant>`).
+
+**Prerequisites:**
+- A Java runtime (macOS: `brew install openjdk`)
+- The Microsoft JDBC driver (`mssql-jdbc`) + MSAL4J jars. By default these are
+  auto-discovered from DataGrip's downloaded drivers
+  (`~/Library/Application Support/JetBrains/DataGrip*/jdbc-drivers/`). If you
+  don't use DataGrip, point `jdbc_jars_dir` at a directory containing them.
+
+> [!IMPORTANT]
+> **NEVER read the output of `run-query` (the `--output` CSV file, or query
+> results piped/printed anywhere) unless the user VERY EXPLICITLY asks you to
+> read that specific file in that specific moment.** The results may contain
+> personal/protected information (PII/PHI) that you are not authorized to see.
+>
+> This means:
+> - Do **not** open, `cat`, `Read`, `head`, `tail`, `grep`, or otherwise inspect
+>   the output file to "verify it worked," summarize it, debug, or out of
+>   curiosity.
+> - Confirm success from the tool's stderr summary (e.g. row count) and exit
+>   code only — never from the file contents.
+> - A general instruction to "run the query" or "get the data" is **not**
+>   permission to read the results. Permission must be explicit and specific to
+>   reading that output (e.g. "open results.csv and tell me the rows").
+> - If you think you need to see the data to proceed, **stop and ask** rather
+>   than reading it.
 
 ## Claude Code Commands
 
