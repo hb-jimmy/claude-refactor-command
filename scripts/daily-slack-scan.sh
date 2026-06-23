@@ -18,7 +18,7 @@ LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d).log"
         -p \
         --dangerously-skip-permissions \
         --add-dir "$HOME/code/slack-notes" \
-        -- "/slack_scan"
+        -- "/slack-scan"
 
     echo "=== Slack Scan completed at $(date) ==="
 } >> "$LOG_FILE" 2>&1

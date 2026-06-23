@@ -2,10 +2,10 @@
 CLI for summary-publish.
 
 Usage:
-    summary-publish <summary-file> <person>
+    summary-publish --config PATH <summary-file> <name>
 
 Example:
-    summary-publish ~/.one-on-one/transcripts/van/2026-02-03.md van
+    summary-publish --config ~/.one-on-one/config.yaml ~/.one-on-one/summaries/van/2026-02-03.md van
 """
 
 import argparse
@@ -13,26 +13,30 @@ import sys
 from pathlib import Path
 
 from fathom_tool.config import ConfigError
-from .config import get_repo_path
+from .config import get_meeting, get_repo_path
 from .publisher import (
     extract_date_from_filename,
     insert_summary,
     git_commit_and_push,
-    ONE_ON_ONE_FILE,
 )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Publish a meeting summary to a shared one-on-one repo."
+        description="Publish a meeting summary to a shared repo."
+    )
+    parser.add_argument(
+        "--config", "-c",
+        required=True,
+        help="Path to the config.yaml file.",
     )
     parser.add_argument(
         "summary_file",
         help="Path to the summary markdown file (date is extracted from filename).",
     )
     parser.add_argument(
-        "person",
-        help="Name of the person (must match a person in ~/.one-on-one/config.yaml).",
+        "name",
+        help="Name of the meeting/person (must match a name in config.yaml).",
     )
     args = parser.parse_args()
 
@@ -41,14 +45,24 @@ def main():
         print(f"Error: Summary file not found: {summary_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Look up repo path from shared config
+    config_path = Path(args.config).expanduser()
+
+    # Look up meeting config
     try:
-        repo_path = get_repo_path(args.person)
+        meeting = get_meeting(args.name, config_path=config_path)
     except ConfigError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    md_path = repo_path / ONE_ON_ONE_FILE
+    # Get repo path
+    try:
+        repo_path = get_repo_path(args.name, config_path=config_path)
+    except ConfigError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    target_file = meeting.file or "one-on-one.md"
+    md_path = repo_path / target_file
     if not md_path.exists():
         print(f"Error: {md_path} not found.", file=sys.stderr)
         sys.exit(1)
@@ -63,7 +77,7 @@ def main():
     # Read the summary content
     summary_text = summary_path.read_text()
 
-    # Insert the summary into one-on-one.md
+    # Insert the summary into the target file
     try:
         insert_summary(md_path, date, summary_text)
     except ValueError as e:
@@ -74,7 +88,7 @@ def main():
 
     # Commit and push
     try:
-        git_commit_and_push(repo_path, date)
+        git_commit_and_push(repo_path, date, filename=target_file)
         print(f"Committed and pushed to {repo_path}")
     except Exception as e:
         print(f"Error during git operations: {e}", file=sys.stderr)

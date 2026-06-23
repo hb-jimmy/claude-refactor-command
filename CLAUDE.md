@@ -33,8 +33,9 @@ claude-utils/
 │   └── config.py         # Server config loading
 ├── .claude/
 │   └── commands/         # Claude Code slash commands
-│       ├── thb-flow.md   # /thb-flow command
-│       └── thb-update.md # /thb-update command
+│       ├── thb-flow.md          # /thb-flow command
+│       ├── thb-update.md        # /thb-update command
+│       └── summarize_standup.md # /summarize_standup command
 └── pyproject.toml        # Package configuration
 ```
 
@@ -188,6 +189,57 @@ channels:
 
 **Required Slack scopes:** `channels:history`, `groups:history`, `users:read`
 
+## Fathom Transcript Tools
+
+### fathom-transcripts
+
+Fetch and manage Fathom meeting transcripts. Requires `--config` to specify which config file to use.
+
+```bash
+fathom-transcripts --config ~/.one-on-one/config.yaml list
+fathom-transcripts --config ~/.one-on-one/config.yaml fetch
+fathom-transcripts --config ~/.one-on-one/config.yaml fetch -m van
+fathom-transcripts --config ~/.standups/config.yaml fetch
+```
+
+**Config format** (`config.yaml`):
+```yaml
+fathom_api_key: "your-fathom-api-key"
+
+meetings:
+  - title: "Alice / You 1:1"
+    name: "Alice"
+    repo: ~/one-on-ones/alice-shared
+  - title: "homeAlign"
+    name: "ha"
+    repo: ~/standups
+    file: ha.md
+```
+
+**Meeting fields:**
+- `title` — Fathom meeting title to match against
+- `name` — Short identifier (used for directory names, CLI lookups). Accepts both `name:` and `person:` keys for backward compatibility.
+- `repo` — Path to git repo for publishing summaries
+- `file` — Target filename within repo (defaults to `one-on-one.md` if omitted)
+
+Transcripts are stored in `<config_dir>/transcripts/<name>/` where `<config_dir>` is the parent directory of the config file.
+
+### summary-publish
+
+Publish a meeting summary to a shared git repo. Requires `--config` to specify which config file to use.
+
+```bash
+summary-publish --config ~/.one-on-one/config.yaml ~/.one-on-one/summaries/van/2026-02-03.md van
+summary-publish --config ~/.standups/config.yaml ~/.standups/summaries/ha/2026-02-03.md ha
+```
+
+**What it does:**
+1. Looks up the meeting config by name to find the repo path and target file
+2. Extracts the date from the summary filename
+3. Inserts the summary into the target file in reverse-chronological order
+4. If the file has a `## Conversation summaries` heading, inserts under it; otherwise inserts after the first line (the title)
+5. Commits and pushes the change
+
 ## Azure SQL Query Tool
 
 ### run-query
@@ -328,6 +380,26 @@ Post a progress update to Jira summarizing recent work. Optionally posts to Slac
 - Slack failures are non-fatal (Jira update is primary)
 
 **Requires:** All changes committed (uses SHA tracking)
+
+### /summarize_standup
+
+Process all unprocessed standup transcripts and publish team summaries.
+
+```
+/summarize_standup
+```
+
+**What it does:**
+1. Fetches latest transcripts from Fathom using `~/.standups/config.yaml`
+2. Finds unprocessed transcripts by comparing transcript dates against existing summaries in the target files
+3. For hA/CoPo transcripts: generates one summary per transcript
+4. For combined Friday transcripts: splits content by team and generates two summaries (one for hA, one for CoPo)
+5. Presents each summary for review before publishing
+6. Publishes to `~/standups/ha.md` and/or `~/standups/copo.md`
+
+**Config:** `~/.standups/config.yaml` with meetings for ha, copo, and combined.
+
+**Requires:** `~/.standups/config.yaml` configured, `~/standups/` git repo with `ha.md` and `copo.md`.
 
 ## User Caching
 

@@ -1,5 +1,5 @@
 """
-Core logic for inserting summaries into one-on-one.md files.
+Core logic for inserting summaries into markdown files.
 """
 
 import re
@@ -8,7 +8,6 @@ from pathlib import Path
 
 
 SECTION_HEADING = "## Conversation summaries"
-ONE_ON_ONE_FILE = "one-on-one.md"
 
 
 def extract_date_from_filename(filepath: Path) -> str:
@@ -29,34 +28,48 @@ def extract_date_from_filename(filepath: Path) -> str:
     return match.group(1)
 
 
-def insert_summary(md_path: Path, date: str, summary_text: str) -> None:
-    """Insert a summary into the one-on-one.md file.
+def insert_summary(
+    md_path: Path,
+    date: str,
+    summary_text: str,
+    section_heading: str = SECTION_HEADING,
+) -> None:
+    """Insert a summary into a markdown file.
 
-    Inserts under the '## Conversation summaries' section in descending
-    chronological order (most recent first).
+    Inserts under the given section heading in descending chronological order
+    (most recent first). If the section heading is not found, falls back to
+    inserting after the first line (the document title).
 
     Args:
-        md_path: Path to the one-on-one.md file.
+        md_path: Path to the markdown file.
         date: Date string for the summary header (e.g., '2026-02-03').
         summary_text: The summary content to insert.
+        section_heading: The heading to insert under. Defaults to
+            '## Conversation summaries'. If not found, inserts after the
+            first line.
     """
     content = md_path.read_text()
 
-    # Find the "## Conversation summaries" section
-    section_idx = content.find(SECTION_HEADING)
+    # Find the section heading
+    section_idx = content.find(section_heading)
     if section_idx == -1:
-        raise ValueError(
-            f"'{SECTION_HEADING}' section not found in {md_path}.\n"
-            "The file must contain this heading."
-        )
+        # Fallback: insert after the first line (the title)
+        first_newline = content.find("\n")
+        if first_newline == -1:
+            # File is a single line with no newline
+            heading_end = len(content)
+            content = content + "\n"
+            heading_end = len(content)
+        else:
+            heading_end = first_newline + 1
+    else:
+        # Position after the section heading line
+        heading_end = content.index("\n", section_idx) + 1
 
     # Build the new entry (summary already contains its own date heading)
     entry = f"\n{summary_text.rstrip()}\n"
 
-    # Position after the section heading line
-    heading_end = content.index("\n", section_idx) + 1
-
-    # Get everything after the section heading
+    # Get everything after the insertion point
     after_heading = content[heading_end:]
 
     # Find existing date headings to determine insertion point
@@ -97,17 +110,16 @@ def insert_summary(md_path: Path, date: str, summary_text: str) -> None:
     md_path.write_text(new_content)
 
 
-def git_commit_and_push(repo_path: Path, date: str) -> None:
-    """Commit the one-on-one.md changes and push.
+def git_commit_and_push(repo_path: Path, date: str, filename: str = "one-on-one.md") -> None:
+    """Commit changes and push.
 
     Args:
         repo_path: Path to the git repository.
         date: Date string used in the commit message.
+        filename: The file to commit. Defaults to 'one-on-one.md'.
     """
-    md_file = ONE_ON_ONE_FILE
-
     subprocess.run(
-        ["git", "add", md_file],
+        ["git", "add", filename],
         cwd=repo_path,
         check=True,
         capture_output=True,
@@ -115,7 +127,7 @@ def git_commit_and_push(repo_path: Path, date: str) -> None:
     )
 
     subprocess.run(
-        ["git", "commit", "-m", f"Add conversation summary for {date}"],
+        ["git", "commit", "-m", f"Add summary for {date}"],
         cwd=repo_path,
         check=True,
         capture_output=True,

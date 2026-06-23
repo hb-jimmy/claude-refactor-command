@@ -2,8 +2,8 @@
 CLI entry points for fathom-tool.
 
 Commands:
-    fathom-transcripts fetch [--meeting PERSON] [--from-date DATE] [--to-date DATE]
-    fathom-transcripts list
+    fathom-transcripts --config PATH fetch [--meeting NAME] [--from-date DATE] [--to-date DATE]
+    fathom-transcripts --config PATH list
 """
 
 import argparse
@@ -12,6 +12,7 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from .client import FathomClient, FathomApiError
 from .config import (
@@ -32,6 +33,7 @@ def _fetch_transcripts(
     meeting: MeetingConfig,
     from_date: str,
     to_date: str,
+    config_dir: Path,
     force: bool = False,
 ) -> int:
     """
@@ -39,7 +41,7 @@ def _fetch_transcripts(
 
     Returns the number of new transcripts saved.
     """
-    out_dir = transcript_dir_for_meeting(meeting)
+    out_dir = transcript_dir_for_meeting(meeting, config_dir=config_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     created_after = f"{from_date}T00:00:00Z"
@@ -50,21 +52,23 @@ def _fetch_transcripts(
         created_before=created_before,
     )
 
-    # Client-side filter: only keep meetings matching the configured title
-    # Normalize whitespace around '/' so "A / B" matches "A/B", "A/ B", etc.
-    def _normalize_title(t: str) -> str:
-        return re.sub(r'\s*/\s*', '/', t.lower().strip())
+    # Client-side filter: only keep meetings matching the configured title.
+    # Collapse all whitespace and normalize '/' so partial titles match:
+    #   config "homeAlign" matches Fathom "homeAlign standup" or "Home Align standup"
+    #   config "Van / Jimmy 1:1" matches Fathom "Van / Jimmy 1:1"
+    def _collapse(t: str) -> str:
+        return re.sub(r'\s+', '', t).lower().replace('/', '/')
 
-    norm_title = _normalize_title(meeting.title)
-    matched = [m for m in meetings if _normalize_title(m.title) == norm_title]
+    collapsed_title = _collapse(meeting.title)
+    matched = [m for m in meetings if collapsed_title in _collapse(m.title)]
 
-    # Fallback: if exact title match finds nothing, try matching by just
-    # the person's first name (e.g., title "Elias" matches person "Elias")
+    # Fallback: if prefix match finds nothing, try matching by just
+    # the name (e.g., title "Elias" matches name "Elias")
     if not matched:
-        person_lower = meeting.person.lower().strip()
-        matched = [m for m in meetings if m.title.lower().strip() == person_lower]
+        name_lower = meeting.name.lower().strip()
+        matched = [m for m in meetings if name_lower in _collapse(m.title)]
         if matched:
-            print(f"  (matched {len(matched)} meeting(s) by person name fallback)")
+            print(f"  (matched {len(matched)} meeting(s) by name fallback)")
 
     meetings = matched
 
@@ -134,7 +138,7 @@ def _fetch_transcripts(
 
 def cmd_fetch(args: argparse.Namespace) -> None:
     """Fetch new transcripts for configured meetings."""
-    config = load_config()
+    config = load_config(config_path=args.config)
     client = FathomClient(config.api_key)
 
     to_date = args.to_date or datetime.now().strftime("%Y-%m-%d")
@@ -142,23 +146,26 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 
     meetings = config.meetings
     if args.meeting:
-        person_lower = args.meeting.lower()
-        meetings = [m for m in meetings if m.person.lower() == person_lower]
+        name_lower = args.meeting.lower()
+        meetings = [m for m in meetings if m.name.lower() == name_lower]
         if not meetings:
-            available = ", ".join(f'"{m.person}"' for m in config.meetings)
-            print(f'Error: No meeting found for person "{args.meeting}"', file=sys.stderr)
+            available = ", ".join(f'"{m.name}"' for m in config.meetings)
+            print(f'Error: No meeting found for name "{args.meeting}"', file=sys.stderr)
             print(f"Available: {available}", file=sys.stderr)
             sys.exit(1)
 
     if not meetings:
-        print("No meetings configured. Add meetings to ~/.one-on-one/config.yaml", file=sys.stderr)
+        print("No meetings configured. Add meetings to your config.yaml", file=sys.stderr)
         sys.exit(1)
 
     total_saved = 0
     for meeting in meetings:
-        print(f"Fetching transcripts for: {meeting.person} (title: {meeting.title})")
+        print(f"Fetching transcripts for: {meeting.name} (title: {meeting.title})")
         try:
-            saved = _fetch_transcripts(client, meeting, from_date, to_date, force=args.force)
+            saved = _fetch_transcripts(
+                client, meeting, from_date, to_date,
+                config_dir=config.config_dir, force=args.force,
+            )
             if saved == 0:
                 print("  No new transcripts found.")
             total_saved += saved
@@ -170,22 +177,22 @@ def cmd_fetch(args: argparse.Namespace) -> None:
 
 def cmd_list(args: argparse.Namespace) -> None:
     """List configured meetings and their transcript counts."""
-    config = load_config()
+    config = load_config(config_path=args.config)
 
     if not config.meetings:
-        print("No meetings configured. Add meetings to ~/.one-on-one/config.yaml")
+        print("No meetings configured. Add meetings to your config.yaml")
         return
 
-    print(f"{'Person':<20} {'Title':<30} {'Transcripts'}")
+    print(f"{'Name':<20} {'Title':<30} {'Transcripts'}")
     print("-" * 65)
 
     for meeting in config.meetings:
-        out_dir = transcript_dir_for_meeting(meeting)
+        out_dir = transcript_dir_for_meeting(meeting, config_dir=config.config_dir)
         if out_dir.exists():
             count = len(list(out_dir.glob("*.json")))
         else:
             count = 0
-        print(f"{meeting.person:<20} {meeting.title:<30} {count}")
+        print(f"{meeting.name:<20} {meeting.title:<30} {count}")
 
 
 def main() -> None:
@@ -193,13 +200,18 @@ def main() -> None:
         prog="fathom-transcripts",
         description="Retrieve Fathom meeting transcripts.",
     )
+    parser.add_argument(
+        "--config", "-c",
+        required=True,
+        help="Path to the config.yaml file.",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # fetch command
     fetch_parser = subparsers.add_parser("fetch", help="Fetch new transcripts")
     fetch_parser.add_argument(
         "--meeting", "-m",
-        help="Fetch only for a specific person name",
+        help="Fetch only for a specific meeting name",
     )
     fetch_parser.add_argument(
         "--from-date", "-f",

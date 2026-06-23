@@ -14,6 +14,8 @@ TOOLS=(
     slack-update
     slack-users
     slack-channels
+    fathom-transcripts
+    summary-publish
     run-query
 )
 
@@ -93,7 +95,7 @@ fi
 info "Installing Claude Code commands..."
 mkdir -p "$COMMANDS_DIR"
 
-for cmd in thb-flow.md thb-update.md; do
+for cmd in thb-flow.md thb-update.md summarize_standup.md; do
     src="$SCRIPT_DIR/.claude/commands/$cmd"
     dst="$COMMANDS_DIR/$cmd"
     if [ ! -f "$src" ]; then
