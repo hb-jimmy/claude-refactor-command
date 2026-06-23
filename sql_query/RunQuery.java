@@ -24,14 +24,16 @@ import java.util.*;
  * If the query argument is empty, the program only authenticates (used by
  * `run-query --login`) and does not connect.
  *
- * The result set is written straight to the output CSV; the row data never
- * crosses back to the Python process.
+ * The result set is written straight to the output CSV (or to stdout when
+ * outCsv is empty); in file mode the row data never crosses back to the Python
+ * process.
  *
  * Run as a single-file source program (Java 11+):
  *   java -cp "<driver+msal jars>" RunQuery.java \
  *       <server> <port> <db> <user> <tenant> <authMode> <outCsv> <query>
  *
- * Prints the row count to stdout. Progress/diagnostics go to stderr.
+ * An empty <outCsv> streams the CSV to stdout. In file mode the row count is
+ * printed to stdout; all progress/diagnostics go to stderr.
  * Exit codes: 0 ok, 2 usage, 3 not authenticated (silent mode, no cache).
  */
 public class RunQuery {
@@ -80,12 +82,15 @@ public class RunQuery {
         Properties props = new Properties();
         props.setProperty("accessToken", token);
 
+        // Empty outCsv => stream the CSV to stdout; otherwise write the file.
+        boolean toStdout = outCsv.isEmpty();
+        OutputStream os = toStdout ? System.out : new FileOutputStream(outCsv);
+
         try (Connection conn = DriverManager.getConnection(url, props)) {
             conn.setReadOnly(true);
             try (Statement st = conn.createStatement();
-                 ResultSet rs = st.executeQuery(query);
-                 Writer w = new BufferedWriter(
-                         new OutputStreamWriter(new FileOutputStream(outCsv), StandardCharsets.UTF_8))) {
+                 ResultSet rs = st.executeQuery(query)) {
+                Writer w = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
                 ResultSetMetaData md = rs.getMetaData();
                 int n = md.getColumnCount();
                 String[] header = new String[n];
@@ -103,8 +108,15 @@ public class RunQuery {
                     rows++;
                 }
                 w.flush();
-                System.err.println("Wrote " + rows + " row(s) to " + outCsv);
-                System.out.println(rows);
+                if (toStdout) {
+                    // Progress only on stderr; stdout carries the CSV data.
+                    System.err.println("Wrote " + rows + " row(s) to stdout.");
+                } else {
+                    w.close();
+                    System.err.println("Wrote " + rows + " row(s) to " + outCsv);
+                    // Machine-readable count for the Python caller (file mode only).
+                    System.out.println(rows);
+                }
             }
         }
     }

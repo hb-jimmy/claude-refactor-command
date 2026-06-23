@@ -258,7 +258,8 @@ Python process.
 
 ```bash
 run-query --login                                          # sign in once (opens browser)
-run-query --db haCentene --output results.csv --query "SELECT TOP 10 * FROM dbo.Members"
+run-query --db haCentene --query "SELECT TOP 10 * FROM dbo.Members"          # CSV to stdout
+run-query --db haCentene --output results.csv --query "SELECT TOP 10 * ..."  # CSV to file
 run-query --db haCentene -o out.csv -q "SELECT id, name FROM dbo.Providers WHERE active = 1"
 run-query --login --db haCentene -o out.csv -q "SELECT ..."  # re-auth, then run
 ```
@@ -273,8 +274,9 @@ run-query --login --db haCentene -o out.csv -q "SELECT ..."  # re-auth, then run
 
 **Flags:**
 - `--db` — Database name to connect to (server host comes from config)
-- `--output` / `-o` — Path to the CSV file to write
 - `--query` / `-q` — The SQL query (quote it on the command line)
+- `--output` / `-o` — Path to the CSV file to write. **Optional**; if omitted,
+  the CSV is written to **stdout**.
 - `--login` — Interactive sign-in (see above)
 
 (`--db`, `--output`, `--query` are all required for a query; `--login` alone
@@ -323,6 +325,11 @@ jdbc_jars_dir: ~/jdbc-drivers       # dir with mssql-jdbc + MSAL4J jars;
 > personal/protected information (PII/PHI) that you are not authorized to see.
 >
 > This means:
+> - **ALWAYS pass `--output <file>` when you (the agent) run `run-query`.**
+>   `--output` is now optional and defaults to **stdout** — but stdout lands in
+>   your context, which is exactly the PII exposure to avoid. Writing to a file
+>   keeps the rows out of your context. Never run a query that streams results
+>   to stdout.
 > - Do **not** open, `cat`, `Read`, `head`, `tail`, `grep`, or otherwise inspect
 >   the output file to "verify it worked," summarize it, debug, or out of
 >   curiosity.

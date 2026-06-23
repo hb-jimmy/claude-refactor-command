@@ -10,7 +10,8 @@ interactively.
 
 Usage:
     run-query --login
-    run-query --db haCentene --output results.csv --query "SELECT TOP 10 * FROM dbo.Members"
+    run-query --db haCentene --query "SELECT TOP 10 * FROM dbo.Members"            # to stdout
+    run-query --db haCentene --output results.csv --query "SELECT TOP 10 * ..."    # to file
     run-query --login --db haCentene -o out.csv -q "SELECT ..."   # re-auth, then run
 """
 
@@ -41,7 +42,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--output", "-o",
-        help="Path to the CSV file to write results to.",
+        help="Path to the CSV file to write results to. "
+             "If omitted, the CSV is written to stdout.",
     )
     parser.add_argument(
         "--query", "-q",
@@ -67,9 +69,9 @@ def main() -> int:
             return 1
         return 0
 
-    # Query mode: all three are required.
+    # Query mode: --db and --query are required; --output is optional (stdout).
     missing = [name for name, val in
-               (("--db", args.db), ("--output/-o", args.output), ("--query/-q", args.query))
+               (("--db", args.db), ("--query/-q", args.query))
                if not val]
     if missing:
         parser.error("the following arguments are required: " + ", ".join(missing))
@@ -82,18 +84,22 @@ def main() -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
+    output_path = args.output or ""
     try:
         rows = run_query_to_csv(
-            config, args.db, args.query, args.output, force_login=args.login
+            config, args.db, args.query, output_path, force_login=args.login
         )
     except QueryError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    if rows >= 0:
-        print(f"Done. {rows} row(s) written to {args.output}.", file=sys.stderr)
-    else:
-        print(f"Done. Results written to {args.output}.", file=sys.stderr)
+    if output_path:
+        if rows >= 0:
+            print(f"Done. {rows} row(s) written to {output_path}.", file=sys.stderr)
+        else:
+            print(f"Done. Results written to {output_path}.", file=sys.stderr)
+    # In stdout mode the CSV is the stdout payload; the Java helper already
+    # reported the row count on stderr, so we add nothing here.
     return 0
 
 

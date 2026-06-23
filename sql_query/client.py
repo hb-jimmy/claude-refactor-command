@@ -212,10 +212,16 @@ def _run_java(
         query,
     ]
 
-    # Let stderr (sign-in prompts, progress) stream straight to the terminal so
-    # the interactive browser flow is visible. Capture only stdout (row count).
+    # stderr (sign-in prompts, progress) always streams straight to the
+    # terminal. In file mode we capture stdout to read the row count. In stdout
+    # mode the CSV *is* stdout, so we must NOT capture it (that would pull the
+    # result rows into this process) -- let it stream straight to the terminal.
+    to_stdout = not output_path
     try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+        if to_stdout:
+            result = subprocess.run(cmd)
+        else:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
     except OSError as e:
         raise QueryError(f"Failed to launch Java: {e}") from e
 
@@ -228,6 +234,9 @@ def _run_java(
         raise QueryError(
             f"Query failed (java exited {result.returncode}). See output above."
         )
+
+    if to_stdout:
+        return -1  # count unknown; CSV went straight to stdout
 
     out = (result.stdout or "").strip().splitlines()
     try:
@@ -260,13 +269,14 @@ def run_query_to_csv(
     the user to run `run-query --login`). Pass force_login=True to sign in
     interactively first.
 
-    The CSV is written by the Java helper; this process never sees the rows.
+    The CSV is written by the Java helper. In file mode this process never sees
+    the rows. If output_path is empty, the CSV streams to stdout instead.
 
     Args:
         config: Server connection config.
         database: Database name to connect to.
         query: The SQL query (re-validated here defensively).
-        output_path: Destination CSV file path.
+        output_path: Destination CSV file path, or "" to stream to stdout.
         force_login: If True, open the browser for an interactive sign-in.
 
     Returns:
